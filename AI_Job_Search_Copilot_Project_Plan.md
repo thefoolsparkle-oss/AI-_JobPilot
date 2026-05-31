@@ -1645,6 +1645,84 @@ JD 解析
 
 ---
 
+# 21. 已知局限与改进方向
+
+### 21.1 当前版本已知局限
+
+| 局限 | 影响 | 改进计划 |
+|------|------|---------|
+| 搜索策略只生成不执行 | 岗位发现需用户手动搜索后贴链接 | 接入搜索引擎或 Playwright 自动搜索 |
+| 语言能力无独立建模 | 无法精细匹配岗位的语言要求 | 履历库加语言专项（语种/考试/分数/等级） |
+| OCR 未接入 | 申请表辅助仅支持文字输入，不支持图片 | 接入 PaddleOCR 或 Tesseract |
+| 批量匹配排序缺席 | 每次只能对一个岗位做匹配 | 加批量匹配接口，按评分排序输出列表 |
+| 简历版本间风格漂移未检测 | 审查只针对单份简历，不对比历史版本 | 审查 Agent 加入跨版本对比逻辑 |
+| 没有端到端测试 | 全流程未经真实数据验证 | 编写 E2E 测试，覆盖履历→JD→匹配→简历 |
+
+### 21.2 AI 能力边界（风险提示）
+
+| 场景 | 系统行为 |
+|------|---------|
+| DeepSeek API 不可用 | 所有 Agent 降级，返回 fallback 数据，不崩溃 |
+| JD 文本格式异常 | 解析 Agent 尝试最佳猜测，失败返回空字段 |
+| 用户履历为空 | 匹配 Agent 返回低分 + 风险提示，不编造经历 |
+| 模板文件缺失 | 简历生成失败，返回明确错误 |
+| 投递平台有验证码 | 不做任何尝试绕过，提示用户手动完成 |
+
+---
+
+# 22. 测试策略
+
+```text
+backend/tests/
+├── test_llm_provider.py    # DeepSeek Provider 初始化、重试、回退
+├── test_models.py          # 数据模型关系、默认值、级联删除  
+├── test_services.py        # Profile/Job/Resume CRUD 服务层
+├── test_agents.py          # Agent JSON 解析、fallback 行为
+├── test_api.py             # 端点 HTTP 状态码、静态文件
+├── test_document_export.py # DOCX 模板渲染、PDF 导出
+└── test_full_workflow.py   # JD 解析 + 匹配 + 简历生成完整链路
+```
+
+```bash
+cd backend
+pip install pytest pytest-asyncio httpx
+pytest tests/ -v
+```
+
+---
+
+# 23. 贡献指南
+
+### 添加新 Agent
+1. `backend/app/agents/my_agent.py` — 继承调用 `LLMProvider`，定义 system prompt + fallback
+2. `backend/app/services/my_service.py` — 调用 agent + 数据库操作
+3. `backend/app/api/my_api.py` — 路由，注册到 `main.py`
+4. `frontend/src/app/my-page/page.tsx` — 前端页面，添加到 `NavBar.tsx`
+5. `cd frontend && npm run build` — 重新编译静态文件
+
+### 添加新模型适配器
+1. `backend/app/llm/new_provider.py` — 继承 `LLMProvider`，实现 `chat()` / `achat()`
+2. `frontend/src/app/settings/page.tsx` — `PRESETS` 数组添加预设
+3. 更新计划文档和 README
+
+### 添加新简历模板
+1. 创建 DOCX，用 `{{key}}` 做占位符 → `templates/`
+2. `backend/app/services/resume_service.py` → `TEMPLATE_SEEDS` 添加条目
+3. `frontend/src/app/templates/page.tsx` → 添加预览样式函数
+
+---
+
+# 24. 部署路线图
+
+| 阶段 | 状态 | 产物 |
+|------|------|------|
+| MVP 本地运行 | ✅ 已完成 | `start.bat` 一键启动 |
+| Electron 桌面应用 | 📋 待开发 | .exe 安装包，无需 Python/浏览器 |
+| Docker 部署 | 📋 规划中 | `docker-compose up` 一键启动 |
+| 云端版 | 📋 规划中 | 用户注册，多租户数据隔离 |
+
+---
+
 # 最终一句话
 
 这个项目最重要的不是“让 AI 写一份漂亮简历”，而是：
