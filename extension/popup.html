@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 320px; padding: 16px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px; color: #333; }
+  h2 { font-size: 16px; margin: 0 0 8px; color: #1d4ed8; }
+  .status { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 12px; }
+  .status.info { background: #dbeafe; color: #1e40af; }
+  .status.ok { background: #dcfce7; color: #166534; }
+  .status.err { background: #fee2e2; color: #991b1b; }
+  .content-preview { max-height: 120px; overflow-y: auto; background: #f4f4f5; border-radius: 6px; padding: 8px; font-size: 11px; margin-bottom: 12px; white-space: pre-wrap; color: #666; }
+  button { width: 100%; padding: 10px; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+  button.primary { background: #1d4ed8; color: #fff; }
+  button.primary:hover { background: #1e40af; }
+  button.primary:disabled { background: #93c5fd; cursor: not-allowed; }
+  button.secondary { background: #f4f4f5; color: #333; margin-top: 8px; }
+  button.secondary:hover { background: #e4e4e7; }
+</style>
+</head>
+<body>
+<h2>JobPilot</h2>
+<div id="status" class="status info">点击下方按钮提取当前页面 JD</div>
+<div id="preview" class="content-preview" style="display:none"></div>
+<button id="extractBtn" class="primary">提取 JD 并发送到 JobPilot</button>
+<button id="openBtn" class="secondary">打开 JobPilot</button>
+<script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+# Environment
+.env
+backend/.env
+
+# Settings (contains API key)
+backend/settings.json
+
+# Database
+*.db
+*.db-journal
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+backend/output/
+
+# Node
+node_modules/
+frontend/.next/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Output files
+output/
