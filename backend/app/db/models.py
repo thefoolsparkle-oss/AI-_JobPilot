@@ -126,6 +126,7 @@ class ResumeVersion(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     template_id = Column(Integer, ForeignKey("resume_templates.id"))
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True)
     name = Column(String(300), default="")
     data = Column(JSON)
     docx_path = Column(String(500), default="")

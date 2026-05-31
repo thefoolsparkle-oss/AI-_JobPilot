@@ -12,6 +12,7 @@ Output valid JSON:
   "application_reason": "申请理由（100-200字，说明为什么投这个岗位）",
   "hr_message": "HR私信全文（可直接复制发送）",
   "cover_letter": "Cover Letter（200-300字，正式的申请信）",
+  "form_answers": [{"question": "常见开放题1", "answer": "建议答案"}, {"question": "常见开放题2", "answer": "建议答案"}],
   "risk_notes": "投递前需注意的风险提醒",
   "interview_questions": ["可能的面试问题1", "可能的面试问题2"]
 }
@@ -20,6 +21,7 @@ Rules:
 - All content must be based on the candidate's actual experience. No fabrication.
 - Write naturally, not like AI. Avoid generic phrases.
 - Address specific requirements from the job description.
+- form_answers: predict 2-3 common open-ended questions for this role and provide natural, specific answers.
 - Risk notes should honestly highlight potential concerns the candidate should prepare for.
 - Interview questions should be role-relevant and based on the JD and candidate's resume gaps.
 """
@@ -29,6 +31,7 @@ FALLBACK_APP = {
     "application_reason": "",
     "hr_message": "",
     "cover_letter": "",
+    "form_answers": [],
     "risk_notes": "",
     "interview_questions": [],
 }

@@ -37,6 +37,7 @@ def generate_package(req: GeneratePackageRequest, db: Session = Depends(get_db))
         "application_reason": pkg.application_reason,
         "hr_message": pkg.hr_message,
         "cover_letter": pkg.cover_letter,
+        "form_answers": pkg.form_answers,
         "risk_notes": pkg.risk_notes,
         "interview_questions": pkg.interview_questions,
     }

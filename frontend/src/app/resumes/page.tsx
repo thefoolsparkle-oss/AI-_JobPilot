@@ -7,6 +7,7 @@ const API_BASE = "/api";
 interface Job { id: number; title: string; company: string; }
 interface Template { id: number; name: string; style: string; }
 interface Resume { id: number; name: string; docx_path: string; pdf_path: string; created_at: string; }
+interface Review { problems: { type: string; text: string; reason: string; suggestion: string }[]; overall_status: string; }
 
 export default function ResumesPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -46,6 +47,9 @@ export default function ResumesPage() {
   };
 
   const [exportingPdf, setExportingPdf] = useState<number | null>(null);
+  const [reviewing, setReviewing] = useState<number | null>(null);
+  const [review, setReview] = useState<Review | null>(null);
+  const [reviewJobId, setReviewJobId] = useState(0);
 
   const handleExportPdf = async (resumeId: number) => {
     setExportingPdf(resumeId);
@@ -61,6 +65,22 @@ export default function ResumesPage() {
       setStatus(`PDF 导出失败: ${e.message}`);
     } finally {
       setExportingPdf(null);
+    }
+  };
+
+  const handleReview = async (resumeId: number) => {
+    const jid = reviewJobId || selectedJob;
+    if (!jid) { setStatus("请先在顶部选择一个岗位"); return; }
+    setReviewing(resumeId);
+    setReview(null);
+    try {
+      const res = await fetch(`${API_BASE}/resumes/${resumeId}/review?job_id=${jid}`, { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      setReview(await res.json());
+    } catch (e: any) {
+      setStatus(`审查失败: ${e.message}`);
+    } finally {
+      setReviewing(null);
     }
   };
 
@@ -106,7 +126,9 @@ export default function ResumesPage() {
                   <span className="font-medium text-zinc-700">{r.name}</span>
                   <span className="text-zinc-400 text-xs ml-3">{new Date(r.created_at).toLocaleString()}</span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-3">
+                  <button onClick={() => { setReviewJobId(selectedJob); handleReview(r.id); }}
+                    className="text-xs text-purple-600 hover:underline">审查</button>
                   {r.pdf_path ? (
                     <a href={`${API_BASE}/resumes/${r.id}/download-pdf`} className="text-xs text-green-600 hover:underline">PDF</a>
                   ) : (
@@ -121,6 +143,24 @@ export default function ResumesPage() {
           </div>
         )}
       </div>
+
+      {reviewing && <div className="mt-6 text-center text-zinc-500 text-sm">审查中...</div>}
+      {review && (
+        <div className="mt-6 bg-white rounded-xl border border-zinc-200 p-6">
+          <h2 className="font-semibold text-zinc-800 mb-4">简历审查结果 — <span className={review.overall_status === "approved" ? "text-green-600" : review.overall_status === "rejected" ? "text-red-600" : "text-amber-600"}>{review.overall_status === "approved" ? "通过" : review.overall_status === "rejected" ? "需重写" : "需修改"}</span></h2>
+          {review.problems.map((p, i) => (
+            <div key={i} className="mb-3 p-3 bg-zinc-50 rounded-lg">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-xs px-2 py-0.5 rounded ${p.type === "overclaim" ? "bg-red-100 text-red-700" : p.type === "vague" ? "bg-amber-100 text-amber-700" : p.type === "ai_flavor" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>{p.type}</span>
+                <span className="text-sm text-zinc-500">{p.reason}</span>
+              </div>
+              <p className="text-sm text-red-600 line-through">原文: {p.text}</p>
+              {p.suggestion && <p className="text-sm text-green-700">建议: {p.suggestion}</p>}
+            </div>
+          ))}
+          {review.problems.length === 0 && <p className="text-sm text-green-600">未发现问题。</p>}
+        </div>
+      )}
     </div>
   );
 }

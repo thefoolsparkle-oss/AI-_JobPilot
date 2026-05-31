@@ -22,6 +22,9 @@ backend/output/
 node_modules/
 frontend/.next/
 
+# Include built frontend for deployment without Node
+!frontend/out/
+
 # IDE
 .idea/
 .vscode/

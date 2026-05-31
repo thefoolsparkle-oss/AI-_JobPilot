@@ -63,6 +63,7 @@ class ResumeGenerationService:
 
         version = ResumeVersion(
             template_id=template_id,
+            job_id=job_id,
             name=name,
             data=resume_data,
             docx_path=docx_path,
@@ -138,6 +139,7 @@ class ApplicationService:
             application_reason=result.get("application_reason", ""),
             hr_message=result.get("hr_message", ""),
             cover_letter=result.get("cover_letter", ""),
+            form_answers=result.get("form_answers", []),
             risk_notes=result.get("risk_notes", ""),
             interview_questions=result.get("interview_questions", []),
         )

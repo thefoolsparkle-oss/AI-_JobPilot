@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { label: "简历", href: "/resumes" },
   { label: "投递", href: "/applications" },
   { label: "追踪", href: "/tracker" },
+  { label: "助手", href: "/assistant" },
 ];
 
 export default function NavBar() {

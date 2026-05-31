@@ -11,6 +11,7 @@ interface Package {
   application_reason: string;
   hr_message: string;
   cover_letter: string;
+  form_answers: { question: string; answer: string }[];
   risk_notes: string;
   interview_questions: string[];
 }
@@ -76,6 +77,17 @@ export default function ApplicationsPage() {
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
               <h3 className="font-semibold text-amber-800 text-sm mb-1">风险提醒</h3>
               <p className="text-sm text-amber-700">{pkg.risk_notes}</p>
+            </div>
+          )}
+          {pkg.form_answers?.length > 0 && (
+            <div className="bg-violet-50 border border-violet-200 rounded-xl p-4">
+              <h3 className="font-semibold text-violet-800 text-sm mb-2">常见开放题</h3>
+              {pkg.form_answers.map((fa, i) => (
+                <div key={i} className="mb-2">
+                  <p className="text-xs text-violet-600 font-medium">{fa.question}</p>
+                  <p className="text-sm text-violet-800">{fa.answer}</p>
+                </div>
+              ))}
             </div>
           )}
           {pkg.interview_questions.length > 0 && (
