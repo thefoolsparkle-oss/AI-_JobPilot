@@ -5,18 +5,21 @@ import { useState, useEffect } from "react";
 const API_BASE = "/api";
 
 interface Record {
-  id: number;
-  job_id: number;
-  job_title: string;
-  company: string;
-  status: string;
-  status_label: string;
-  platform: string;
-  hr_contact: string;
-  notes: string;
-  applied_at: string | null;
-  created_at: string;
-  updated_at: string;
+  id: number; job_id: number; job_title: string; company: string;
+  status: string; status_label: string; priority: number;
+  platform: string; hr_contact: string; notes: string;
+  rejection_reason: string; interview_log: string;
+  applied_at: string | null; follow_up_at: string | null;
+  created_at: string; updated_at: string;
+}
+
+interface Analytics {
+  total: number; applied: number; interviewing: number;
+  offered: number; rejected: number;
+  response_rate: number; interview_rate: number;
+  status_counts: { [key: string]: number };
+  rejection_reasons: { job: string; reason: string }[];
+  recommendations: string[];
 }
 
 const STATUS_OPTIONS = [
@@ -31,14 +34,19 @@ const STATUS_OPTIONS = [
 
 export default function TrackerPage() {
   const [records, setRecords] = useState<Record[]>([]);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<number | null>(null);
-  const [form, setForm] = useState({ status: "applied", platform: "", hr_contact: "", notes: "" });
+  const [form, setForm] = useState({ status: "applied", priority: 3, platform: "", hr_contact: "", notes: "", rejection_reason: "", interview_log: "" });
 
   const loadRecords = async () => {
     try {
-      const res = await fetch(`${API_BASE}/tracker/records`);
-      setRecords(await res.json());
+      const [recRes, anaRes] = await Promise.all([
+        fetch(`${API_BASE}/tracker/records`),
+        fetch(`${API_BASE}/tracker/analytics`),
+      ]);
+      setRecords(await recRes.json());
+      setAnalytics(await anaRes.json());
     } catch (e) {
       console.error(e);
     } finally {
@@ -81,7 +89,7 @@ export default function TrackerPage() {
                     <div className="text-xs text-zinc-500 truncate">{r.job_title}</div>
                     {r.platform && <div className="text-xs text-zinc-400 mt-1">平台: {r.platform}</div>}
                     <button
-                      onClick={() => { setEditing(r.job_id); setForm({ status: r.status, platform: r.platform, hr_contact: r.hr_contact, notes: r.notes }); }}
+                      onClick={() => { setEditing(r.job_id); setForm({ status: r.status, priority: r.priority, platform: r.platform, hr_contact: r.hr_contact, notes: r.notes, rejection_reason: r.rejection_reason || "", interview_log: r.interview_log || "" }); }}
                       className="text-xs text-blue-500 hover:underline mt-1"
                     >
                       更新状态
@@ -96,6 +104,34 @@ export default function TrackerPage() {
           );
         })}
       </div>
+
+      {analytics && analytics.total > 0 && (
+        <div className="mt-10">
+          <h2 className="font-semibold text-zinc-800 mb-4">数据分析与建议</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="总投递" value={analytics.total} />
+            <StatCard label="回复率" value={analytics.response_rate + "%"} />
+            <StatCard label="面试率" value={analytics.interview_rate + "%"} />
+            <StatCard label="Offer" value={analytics.offered} />
+          </div>
+          {analytics.recommendations.length > 0 && (
+            <div className="mt-4 bg-blue-50 rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-blue-800 mb-2">策略建议</h3>
+              <ul className="list-disc list-inside text-sm text-blue-700 space-y-1">
+                {analytics.recommendations.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            </div>
+          )}
+          {analytics.rejection_reasons.length > 0 && (
+            <div className="mt-4 bg-red-50 rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-red-800 mb-2">拒绝原因总结</h3>
+              {analytics.rejection_reasons.map((r, i) => (
+                <p key={i} className="text-sm text-red-700">{r.job}: {r.reason}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {editing !== null && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
@@ -119,6 +155,25 @@ export default function TrackerPage() {
                 <input value={form.hr_contact} onChange={(e) => setForm({ ...form, hr_contact: e.target.value })}
                   className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" />
               </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">优先级 (1-5)</label>
+                  <select value={form.priority} onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })}
+                    className="w-full border border-zinc-200 rounded px-2 py-1 text-sm">
+                    {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">面试记录</label>
+                <textarea value={form.interview_log} onChange={(e) => setForm({ ...form, interview_log: e.target.value })}
+                  className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" rows={2} placeholder="面试时间、问题、表现..." />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">拒绝原因</label>
+                <input value={form.rejection_reason} onChange={(e) => setForm({ ...form, rejection_reason: e.target.value })}
+                  className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" placeholder="如：经验不匹配、已招满..." />
+              </div>
               <div>
                 <label className="block text-xs font-medium text-zinc-500 mb-1">备注</label>
                 <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
@@ -132,6 +187,15 @@ export default function TrackerPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="bg-white rounded-xl border border-zinc-200 p-4 text-center">
+      <div className="text-2xl font-bold text-zinc-800">{value}</div>
+      <div className="text-xs text-zinc-500 mt-1">{label}</div>
     </div>
   );
 }

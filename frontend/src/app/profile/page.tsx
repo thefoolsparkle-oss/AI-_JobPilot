@@ -33,6 +33,9 @@ interface Education {
 interface ExperienceFact {
   id?: number;
   content: string;
+  claim_level: string;
+  risk_level: string;
+  interview_explanation: string;
   sort_order: number;
 }
 
@@ -48,6 +51,8 @@ interface Experience {
   tech_stack: string[];
   allowed_claims: string[];
   forbidden_claims: string[];
+  evidence: string[];
+  transferable_skills: string[];
   facts: ExperienceFact[];
 }
 
@@ -78,7 +83,7 @@ const emptyEducation = (): Education => ({
 const emptyExperience = (): Experience => ({
   experience_type: "internship", name: "", organization: "", title: "",
   start_date: "", end_date: "", location: "", tech_stack: [], allowed_claims: [],
-  forbidden_claims: [], facts: [],
+  forbidden_claims: [], evidence: [], transferable_skills: [], facts: [],
 });
 
 const emptySkill = (): Skill => ({ name: "", level: "intermediate", category: "programming" });
@@ -409,14 +414,31 @@ function ExperienceSection({ profile, onUpdate }: { profile: Profile; onUpdate: 
             <div className="mt-4">
               <label className="block text-xs font-medium text-zinc-500">事实列表 (facts)</label>
               {(form.facts || []).map((f, i) => (
-                <div key={i} className="flex gap-2 mt-1">
-                  <input value={f.content} onChange={(e) => {
+                <div key={i} className="flex gap-2 mt-1 mb-2">
+                  <textarea value={f.content} onChange={(e) => {
                     const nf = [...form.facts]; nf[i] = { ...nf[i], content: e.target.value }; setForm({ ...form, facts: nf });
-                  }} className="flex-1 border border-zinc-200 rounded px-2 py-1 text-sm" />
-                  <button onClick={() => setForm({ ...form, facts: form.facts.filter((_, j) => j !== i) })} className="text-red-400 text-xs">删除</button>
+                  }} className="flex-1 border border-zinc-200 rounded px-2 py-1 text-sm h-12 resize-none" />
+                  <div className="flex flex-col gap-1">
+                    <select value={f.claim_level} onChange={(e) => {
+                      const nf = [...form.facts]; nf[i] = { ...nf[i], claim_level: e.target.value }; setForm({ ...form, facts: nf });
+                    }} className="border border-zinc-200 rounded px-1 text-xs">
+                      <option value="participated">参与</option>
+                      <option value="responsible">负责</option>
+                      <option value="led">主导</option>
+                      <option value="independent">独立完成</option>
+                    </select>
+                    <select value={f.risk_level} onChange={(e) => {
+                      const nf = [...form.facts]; nf[i] = { ...nf[i], risk_level: e.target.value }; setForm({ ...form, facts: nf });
+                    }} className="border border-zinc-200 rounded px-1 text-xs">
+                      <option value="stable">稳</option>
+                      <option value="needs_explanation">需解释</option>
+                      <option value="not_recommended">不建议写</option>
+                    </select>
+                    <button onClick={() => setForm({ ...form, facts: form.facts.filter((_, j) => j !== i) })} className="text-red-400 text-xs">删除</button>
+                  </div>
                 </div>
               ))}
-              <button onClick={() => setForm({ ...form, facts: [...form.facts, { content: "", sort_order: form.facts.length }] })}
+              <button onClick={() => setForm({ ...form, facts: [...form.facts, { content: "", claim_level: "participated", risk_level: "stable", interview_explanation: "", sort_order: form.facts.length }] })}
                 className="text-sm text-blue-600 mt-1">+ 添加事实</button>
             </div>
 

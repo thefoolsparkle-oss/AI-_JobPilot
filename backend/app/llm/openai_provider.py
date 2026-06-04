@@ -20,6 +20,7 @@ class OpenAIProvider(LLMProvider):
         temperature: Optional[float] = None,
         model: Optional[str] = None,
         max_tokens: Optional[int] = None,
+        agent_name: str = "",
     ) -> str:
         kwargs: dict[str, Any] = {
             "model": model or self.default_model,
@@ -44,6 +45,7 @@ class OpenAIProvider(LLMProvider):
         temperature: Optional[float] = None,
         model: Optional[str] = None,
         max_tokens: Optional[int] = None,
+        agent_name: str = "",
     ) -> str:
         from openai import AsyncOpenAI
         kwargs: dict[str, Any] = {

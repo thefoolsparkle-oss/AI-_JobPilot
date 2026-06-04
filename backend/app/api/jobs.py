@@ -76,8 +76,8 @@ def match_job(job_id: int, db: Session = Depends(get_db)):
         "id": match.id,
         "job_id": match.job_id,
         "score": match.score,
-        "recommendation": match.recommendation,
-        "summary": match.summary,
+        "decision": match.recommendation,
+        "decision_reasons": match.summary,
         "match_reasons": match.match_reasons,
         "risks": match.risks,
         "resume_strategy": match.resume_strategy,
@@ -95,12 +95,29 @@ def get_match(job_id: int, db: Session = Depends(get_db)):
         "id": match.id,
         "job_id": match.job_id,
         "score": match.score,
-        "recommendation": match.recommendation,
-        "summary": match.summary,
+        "decision": match.recommendation,
+        "decision_reasons": match.summary,
         "match_reasons": match.match_reasons,
         "risks": match.risks,
         "resume_strategy": match.resume_strategy,
     }
+
+
+@router.post("/batch-match")
+def batch_match(req: dict, db: Session = Depends(get_db)):
+    job_ids = req.get("job_ids", [])
+    from app.services.job_matching_service import JobMatchingService
+    match_svc = JobMatchingService()
+    results = []
+    for jid in job_ids:
+        try:
+            match = match_svc.match_job(db, jid)
+            if match:
+                results.append({"job_id": jid, "score": match.score, "decision": match.recommendation})
+        except Exception:
+            pass
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return {"results": results}
 
 
 @router.delete("/{job_id}")

@@ -36,6 +36,7 @@ class SearchStrategyAgent:
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,
+                agent_name="search_strategy",
             )
             if "```json" in response:
                 start = response.index("```json") + 7

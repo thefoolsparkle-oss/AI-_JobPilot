@@ -20,7 +20,10 @@ class EducationSchema(BaseModel):
 class ExperienceFactSchema(BaseModel):
     id: Optional[int] = None
     experience_id: Optional[int] = None
-    content: str
+    content: str = ""
+    claim_level: str = "participated"
+    risk_level: str = "stable"
+    interview_explanation: str = ""
     sort_order: int = 0
 
     model_config = {"from_attributes": True}
@@ -39,6 +42,8 @@ class ExperienceSchema(BaseModel):
     tech_stack: list[str] = Field(default_factory=list)
     allowed_claims: list[str] = Field(default_factory=list)
     forbidden_claims: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    transferable_skills: list[str] = Field(default_factory=list)
     facts: list[ExperienceFactSchema] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}

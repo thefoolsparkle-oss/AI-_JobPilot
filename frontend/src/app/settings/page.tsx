@@ -191,7 +191,7 @@ export default function SettingsPage() {
             {message}
           </p>
         )}
-        <p className="mt-4 text-xs text-zinc-400">Key 加密存储在本地 settings.json 中，不会明文显示。</p>
+        <p className="mt-4 text-xs text-zinc-400">Key 使用 Fernet 加密存储在本地，不会明文显示。</p>
       </div>
     </div>
   );

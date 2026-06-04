@@ -48,6 +48,7 @@ class ResumeParserAgent:
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.1,
+                agent_name="resume_parser",
             )
             return json.loads(response)
         except Exception as e:

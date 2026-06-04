@@ -61,6 +61,8 @@ class Experience(Base):
     tech_stack = Column(JSON, default=list)
     allowed_claims = Column(JSON, default=list)
     forbidden_claims = Column(JSON, default=list)
+    evidence = Column(JSON, default=list)
+    transferable_skills = Column(JSON, default=list)
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
 
@@ -74,6 +76,9 @@ class ExperienceFact(Base):
     id = Column(Integer, primary_key=True, index=True)
     experience_id = Column(Integer, ForeignKey("experiences.id"))
     content = Column(Text, default="")
+    claim_level = Column(String(50), default="participated")
+    risk_level = Column(String(50), default="stable")
+    interview_explanation = Column(Text, default="")
     sort_order = Column(Integer, default=0)
 
     experience = relationship("Experience", back_populates="facts")
@@ -187,17 +192,46 @@ class ApplicationPackage(Base):
     job = relationship("Job", back_populates="application_packages")
 
 
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    agent_name = Column(String(100))
+    input_summary = Column(Text, default="")
+    output_summary = Column(Text, default="")
+    success = Column(Boolean, default=True)
+    error_msg = Column(Text, default="")
+    duration_ms = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=_now)
+
+
+class LLMCall(Base):
+    __tablename__ = "llm_calls"
+
+    id = Column(Integer, primary_key=True, index=True)
+    agent_run_id = Column(Integer, ForeignKey("agent_runs.id"), nullable=True)
+    model = Column(String(100), default="")
+    prompt_tokens = Column(Integer, nullable=True)
+    completion_tokens = Column(Integer, nullable=True)
+    temperature = Column(Float, nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=_now)
+
+
 class ApplicationRecord(Base):
     __tablename__ = "application_records"
 
     id = Column(Integer, primary_key=True, index=True)
     job_id = Column(Integer, ForeignKey("jobs.id"))
-    status = Column(String(50), default="discovered")  # discovered, saved, applied, interviewing, offered, rejected, archived
+    status = Column(String(50), default="discovered")
+    priority = Column(Integer, default=3)
     applied_at = Column(DateTime, nullable=True)
     platform = Column(String(200), default="")
     hr_contact = Column(String(500), default="")
     notes = Column(Text, default="")
     interview_log = Column(Text, default="")
+    rejection_reason = Column(Text, default="")
+    follow_up_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
 

@@ -77,8 +77,8 @@ class JobMatchingService:
         match = JobMatch(
             job_id=job_id,
             score=result.get("score", 0),
-            recommendation=result.get("recommendation", "review"),
-            summary=result.get("summary", ""),
+            recommendation=result.get("decision", result.get("recommendation", "review")),
+            summary=result.get("decision_reasons", result.get("summary", "")),
             match_reasons=result.get("match_reasons", []),
             risks=result.get("risks", []),
             resume_strategy=result.get("resume_strategy", []),

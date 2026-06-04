@@ -18,6 +18,13 @@ from app.api.tracker import router as tracker_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    from app.services.resume_service import TemplateService
+    from app.db.session import SessionLocal
+    db = SessionLocal()
+    try:
+        TemplateService().seed_templates(db)
+    finally:
+        db.close()
     yield
 
 

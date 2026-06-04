@@ -96,7 +96,13 @@ class ProfileService:
         db.add(exp)
         db.flush()
         for i, fact in enumerate(facts_data):
-            db.add(ExperienceFact(experience_id=exp.id, content=fact.content, sort_order=fact.sort_order or i))
+            db.add(ExperienceFact(
+                experience_id=exp.id,
+                content=fact.content,
+                claim_level=getattr(fact, 'claim_level', 'participated') or 'participated',
+                risk_level=getattr(fact, 'risk_level', 'stable') or 'stable',
+                interview_explanation=getattr(fact, 'interview_explanation', '') or '',
+                sort_order=fact.sort_order or i))
         db.commit()
         db.refresh(exp)
         return ExperienceSchema.model_validate(exp)
@@ -113,7 +119,13 @@ class ProfileService:
             for old_fact in exp.facts:
                 db.delete(old_fact)
             for i, fact in enumerate(update_data["facts"]):
-                db.add(ExperienceFact(experience_id=exp.id, content=fact.content, sort_order=i))
+                db.add(ExperienceFact(
+                    experience_id=exp.id,
+                    content=fact.content,
+                    claim_level=getattr(fact, 'claim_level', 'participated') or 'participated',
+                    risk_level=getattr(fact, 'risk_level', 'stable') or 'stable',
+                    interview_explanation=getattr(fact, 'interview_explanation', '') or '',
+                    sort_order=i))
         db.commit()
         db.refresh(exp)
         return ExperienceSchema.model_validate(exp)

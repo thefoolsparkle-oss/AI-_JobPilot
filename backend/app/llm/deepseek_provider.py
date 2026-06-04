@@ -1,4 +1,5 @@
 import json
+import time
 import logging
 from typing import Any, Optional
 
@@ -64,16 +65,33 @@ class DeepSeekProvider(LLMProvider):
             kwargs["max_tokens"] = max_tokens
         return kwargs
 
-    def _retry_chat(self, kwargs: dict[str, Any]) -> str:
+    def _retry_chat(self, kwargs: dict[str, Any], agent_name: str = "") -> str:
         last_error: Optional[Exception] = None
+        t0 = time.time()
+        model = kwargs.get("model", "")
         for attempt in range(self.max_retries + 1):
             try:
                 response = self.client.chat.completions.create(**kwargs)
+                self._log_call(model, agent_name, response, time.time() - t0)
                 return response.choices[0].message.content or ""
             except Exception as e:
                 last_error = e
                 logger.warning(f"DeepSeek chat attempt {attempt + 1} failed: {e}")
         raise last_error or RuntimeError("DeepSeek chat failed")
+
+    def _log_call(self, model: str, agent_name: str, response, duration_s: float):
+        try:
+            from app.services.agent_logger import AgentLogger
+            log = AgentLogger(agent_name or "unknown")
+            usage = response.usage
+            log.log_llm_call(
+                model=model,
+                prompt_tokens=usage.prompt_tokens if usage else None,
+                completion_tokens=usage.completion_tokens if usage else None,
+                duration_ms=int(duration_s * 1000),
+            )
+        except Exception:
+            pass
 
     async def _retry_achat(self, kwargs: dict[str, Any]) -> str:
         last_error: Optional[Exception] = None
@@ -94,6 +112,7 @@ class DeepSeekProvider(LLMProvider):
         temperature: Optional[float] = None,
         model: Optional[str] = None,
         max_tokens: Optional[int] = None,
+        agent_name: str = "",
     ) -> str:
         kwargs = self._build_kwargs(
             model=model or self.fast_model,
@@ -102,7 +121,7 @@ class DeepSeekProvider(LLMProvider):
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        return self._retry_chat(kwargs)
+        return self._retry_chat(kwargs, agent_name)
 
     async def achat(
         self,
@@ -111,6 +130,7 @@ class DeepSeekProvider(LLMProvider):
         temperature: Optional[float] = None,
         model: Optional[str] = None,
         max_tokens: Optional[int] = None,
+        agent_name: str = "",
     ) -> str:
         kwargs = self._build_kwargs(
             model=model or self.fast_model,
@@ -126,12 +146,14 @@ class DeepSeekProvider(LLMProvider):
         messages: list[dict[str, str]],
         response_format: Optional[dict[str, Any]] = None,
         temperature: Optional[float] = None,
+        agent_name: str = "",
     ) -> str:
         return self.chat(
             messages=messages,
             response_format=response_format,
             temperature=temperature,
             model=self.reasoning_model,
+            agent_name=agent_name,
         )
 
     async def achat_with_reasoning(

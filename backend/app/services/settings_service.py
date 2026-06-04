@@ -2,19 +2,21 @@ import json
 import os
 import base64
 from pathlib import Path
+from cryptography.fernet import Fernet
 
-SETTINGS_FILE = Path(__file__).resolve().parent.parent.parent / "settings.json"
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+SETTINGS_FILE = Path(os.getenv("JOBPILOT_SETTINGS_FILE", BASE_DIR / "settings.json"))
+KEY_FILE = Path(os.getenv("JOBPILOT_SECRET_KEY_FILE", BASE_DIR / ".secret_key"))
 
 
-def _encode(data: str) -> str:
-    return base64.b64encode(data.encode()).decode()
-
-
-def _decode(data: str) -> str:
-    try:
-        return base64.b64decode(data.encode()).decode()
-    except Exception:
-        return ""
+def _get_fernet() -> Fernet:
+    if KEY_FILE.exists():
+        key = KEY_FILE.read_bytes()
+        return Fernet(key)
+    key = Fernet.generate_key()
+    KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    KEY_FILE.write_bytes(key)
+    return Fernet(key)
 
 
 class SettingsStore:
@@ -27,16 +29,27 @@ class SettingsStore:
         return {}
 
     def save(self, data: dict):
+        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
         SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def get_key(self) -> str:
         data = self.load()
         encrypted = data.get("DEEPSEEK_API_KEY", "")
-        return _decode(encrypted)
+        if not encrypted:
+            return ""
+        try:
+            return _get_fernet().decrypt(encrypted.encode()).decode()
+        except Exception:
+            try:
+                key = base64.b64decode(encrypted.encode()).decode()
+                self.set_key(key)
+                return key
+            except Exception:
+                return ""
 
     def set_key(self, api_key: str):
         data = self.load()
-        data["DEEPSEEK_API_KEY"] = _encode(api_key)
+        data["DEEPSEEK_API_KEY"] = _get_fernet().encrypt(api_key.encode()).decode()
         self.save(data)
 
     def set_model_config(self, base_url: str = "", fast_model: str = "", reasoning_model: str = ""):

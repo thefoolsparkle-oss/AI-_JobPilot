@@ -53,6 +53,7 @@ class JDParserAgent:
                     {"role": "user", "content": f"Parse this job description:\n\n{jd_text[:4000]}"},
                 ],
                 temperature=0.1,
+                agent_name="jd_parser",
             )
             return json.loads(response)
         except Exception as e:

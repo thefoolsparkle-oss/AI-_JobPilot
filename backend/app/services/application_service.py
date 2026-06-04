@@ -90,8 +90,21 @@ class ResumeGenerationService:
             ],
         }
 
+        # Find previous version for comparison
+        from sqlalchemy import select, desc
+        previous = db.execute(
+            select(ResumeVersion)
+            .where(ResumeVersion.job_id == job_id, ResumeVersion.id < resume_id)
+            .order_by(desc(ResumeVersion.id))
+        ).scalars().first()
+
         agent = ResumeReviewerAgent()
-        return agent.review(resume.data, profile_data, {"parsed_jd": job.parsed_jd})
+        return agent.review(
+            resume.data,
+            profile_data,
+            {"parsed_jd": job.parsed_jd},
+            previous.data if previous else None
+        )
 
 
 class ApplicationService:

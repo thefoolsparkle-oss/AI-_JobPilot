@@ -10,12 +10,14 @@
 # 1. 克隆项目
 git clone <repo-url> && cd JobPilot
 
-# 2. 配置 API Key
-cp .env.example backend/.env
-# 编辑 backend/.env，填入你的 DEEPSEEK_API_KEY
-
-# 3. 安装依赖（仅首次）
+# 2. 安装 Python 依赖
 pip install -r backend/requirements.txt
+
+# 2.1 安装 Playwright 浏览器（用于 PDF 导出和网页抓取）
+playwright install chromium
+
+# 3. 配置 API Key（启动后在浏览器设置页面填写，或在 backend/.env 中手动写）
+# 启动后打开 http://127.0.0.1:8001 → 点击右上角「设置」
 
 # 4. 启动
 # Windows: 双击 start.bat
@@ -34,9 +36,9 @@ pip install -r backend/requirements.txt
 4. **岗位匹配** — DeepSeek-reasoner 评分 0-100，给出优势、风险、简历策略
 5. **简历生成** — 基于模板 + JD + 事实库生成专用简历，导出 DOCX + PDF
 6. **简历审查** — 检查夸大、空话、AI 味、面试承接风险
-7. **岗位发现** — 搜索策略 + Playwright 网页抓取
+7. **岗位发现** — 搜索策略 + DDGS 搜索执行 + Playwright 网页抓取
 8. **投递材料包** — 自我介绍、申请理由、HR 私信、Cover Letter、面试问题
-9. **申请表辅助** — 粘贴表单问题，AI 给出填写建议
+9. **申请表辅助** — 粘贴表单问题或上传截图 OCR，AI 给出填写建议
 10. **投递追踪** — 看板式管理投递状态（发现→收藏→投递→面试→Offer）
 11. **浏览器插件** — Chrome 扩展，招聘页一键发送 JD 到 JobPilot
 12. **多模型** — 预设 DeepSeek / OpenAI / Kimi / Qwen，前端设置页配置 API Key
@@ -46,7 +48,12 @@ pip install -r backend/requirements.txt
 启动后在浏览器中打开应用，点击右上角「设置」：
 - 填写 API Key（password 字段，不显示明文）
 - 选择模型预设（DeepSeek / OpenAI / Kimi / Qwen）
-- Key 加密存储在 `settings.json` 中
+- Key 使用 Fernet 加密存储在 `settings.json` 中；旧 Base64 格式会自动迁移
+
+### OCR 与搜索依赖
+
+- 岗位发现使用 `ddgs` 执行公开搜索，再配合 Playwright 抓取详情页。
+- 申请表截图识别使用 EasyOCR。首次识别可能需要下载模型，速度会比较慢。
 
 ### 浏览器插件
 
@@ -100,3 +107,12 @@ npm run build      # 输出到 frontend/out/
 cd backend
 python -m uvicorn app.main:app --reload --port 8001
 ```
+
+运行测试：
+
+```bash
+cd backend
+pytest tests -q
+```
+
+测试会强制使用 `test_jobpilot.db`、`test_settings.json` 和 `test_secret_key`，不会删除本地真实的 `jobpilot.db`、`settings.json` 或 `.secret_key`。

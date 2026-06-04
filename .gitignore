@@ -2,8 +2,9 @@
 .env
 backend/.env
 
-# Settings (contains API key)
+# Settings (contains API key - encrypted)
 backend/settings.json
+backend/.secret_key
 
 # Database
 *.db
@@ -17,6 +18,9 @@ __pycache__/
 dist/
 build/
 backend/output/
+backend/uploads/
+backend/test_settings.json
+backend/test_secret_key
 
 # Node
 node_modules/

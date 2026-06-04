@@ -59,6 +59,7 @@ Generate the application materials."""
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.4,
+                agent_name="application_writer",
             )
             if "```json" in response:
                 start = response.index("```json") + 7
