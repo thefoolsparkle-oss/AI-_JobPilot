@@ -142,18 +142,39 @@ def get_analytics(db: Session = Depends(get_db)):
         if r.rejection_reason:
             rejection_reasons.append({"job": r.job.title if r.job else "", "reason": r.rejection_reason})
 
-    # Generate strategy recommendations
+    # Generate strategy recommendations using LLM if available, fallback to rules
     recommendations = []
-    if total < 5:
-        recommendations.append("投递量偏少，建议增加搜索关键词覆盖更多岗位")
-    if response_rate < 20 and applied >= 5:
-        recommendations.append("回复率偏低，建议优化简历匹配度和申请理由")
-    if interview_rate > 0 and interview_rate < 10:
-        recommendations.append("面试转化率低，建议审视面试准备和经历表述")
-    if rejected > 0:
-        recommendations.append("已收到拒绝，分析拒绝原因有助于调整下一轮策略")
-    if status_counts.get("offered", 0) > 0:
-        recommendations.append("已获得 Offer，优先对比条件做最终决策")
+    try:
+        from app.agents.application_writer import ApplicationWriterAgent
+        agent = ApplicationWriterAgent()
+        stats_text = f"""求职数据: 总投递{total}个，已投递{applied}个，面试{interviewing}个，Offer{status_counts.get('offered', 0)}个，被拒{rejected}个。回复率{response_rate}%，面试率{interview_rate}%。"""
+        if rejection_reasons:
+            stats_text += f" 拒绝原因: {[r['reason'] for r in rejection_reasons]}"
+        result = agent.llm.chat(
+            messages=[
+                {"role": "system", "content": "你是求职策略分析师。根据用户投递数据，给出3条具体可行的下一轮策略建议。每条建议15字以内。输出JSON格式: {\"tips\": [\"建议1\", \"建议2\", \"建议3\"]}。只用数据说话，不编造。"},
+                {"role": "user", "content": stats_text},
+            ],
+            temperature=0.3,
+            agent_name="crm_strategist",
+        )
+        import json
+        ai_result = json.loads(result) if result else {}
+        recommendations = ai_result.get("tips", [])
+    except Exception:
+        pass
+
+    if not recommendations:
+        if total < 5:
+            recommendations.append("投递量偏少，建议增加搜索关键词覆盖更多岗位")
+        if response_rate < 20 and applied >= 5:
+            recommendations.append("回复率偏低，建议优化简历匹配度和申请理由")
+        if interview_rate > 0 and interview_rate < 10:
+            recommendations.append("面试转化率低，建议审视面试准备和经历表述")
+        if rejected > 0:
+            recommendations.append("已收到拒绝，分析拒绝原因有助于调整下一轮策略")
+        if status_counts.get("offered", 0) > 0:
+            recommendations.append("已获得 Offer，优先对比条件做最终决策")
 
     return {
         "total": total,

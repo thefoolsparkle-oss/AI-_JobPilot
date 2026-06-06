@@ -73,11 +73,13 @@ def match_job(job_id: int, db: Session = Depends(get_db)):
     if not match:
         raise HTTPException(status_code=404, detail="Job not found or not parsed")
     return {
-        "id": match.id,
-        "job_id": match.job_id,
-        "score": match.score,
-        "decision": match.recommendation,
-        "decision_reasons": match.summary,
+        "id": match.id, "job_id": match.job_id,
+        "score": match.score, "decision": match.recommendation,
+        "decision_reasons": match.decision_reasons,
+        "hard_filter_passed": match.hard_filter_passed,
+        "hard_filter_details": match.hard_filter_details,
+        "user_confirm_required": match.user_confirm_required,
+        "application_strategy": match.application_strategy,
         "match_reasons": match.match_reasons,
         "risks": match.risks,
         "resume_strategy": match.resume_strategy,
@@ -92,11 +94,13 @@ def get_match(job_id: int, db: Session = Depends(get_db)):
     if not match:
         raise HTTPException(status_code=404, detail="No match found for this job")
     return {
-        "id": match.id,
-        "job_id": match.job_id,
-        "score": match.score,
-        "decision": match.recommendation,
-        "decision_reasons": match.summary,
+        "id": match.id, "job_id": match.job_id,
+        "score": match.score, "decision": match.recommendation,
+        "decision_reasons": match.decision_reasons,
+        "hard_filter_passed": match.hard_filter_passed,
+        "hard_filter_details": match.hard_filter_details,
+        "user_confirm_required": match.user_confirm_required,
+        "application_strategy": match.application_strategy,
         "match_reasons": match.match_reasons,
         "risks": match.risks,
         "resume_strategy": match.resume_strategy,

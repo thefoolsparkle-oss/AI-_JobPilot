@@ -134,23 +134,41 @@ document.getElementById("extractBtn").addEventListener("click", async () => {
   }
 });
 
-// Form mode: suggest answers
+// Form mode: suggest answers with context
 document.getElementById("assistBtn").addEventListener("click", async () => {
   const btn = document.getElementById("assistBtn");
   btn.disabled = true;
   btn.textContent = "分析中...";
   try {
     const fieldDescs = pageInfo.formFields.map(f => `[${f.type}] ${f.label || f.id}`).join("\n");
+
+    // Get latest job and resume from backend for context
+    let jobId = 0;
+    let resumeId = 0;
+    try {
+      const jobsRes = await fetch(`${BACKEND}/jobs`);
+      const jobs = await jobsRes.json();
+      if (jobs.length > 0) jobId = jobs[jobs.length - 1].id;
+      const resumeRes = await fetch(`${BACKEND}/resumes`);
+      const resumes = await resumeRes.json();
+      if (resumes.length > 0) resumeId = resumes[resumes.length - 1].id;
+    } catch (e) {}
+
+    const body = {
+      form_text: "请为以下表单字段生成填写建议:\n" + fieldDescs,
+      job_id: jobId || undefined,
+      resume_id: resumeId || undefined,
+    };
     const res = await fetch(`${BACKEND}/assistant/form`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ form_text: "请为以下表单字段生成填写建议:\n" + fieldDescs }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     document.getElementById("form-suggestions").textContent = data.suggestion || data.natural_answer || "暂无建议";
     showSection("section-form-result");
-    setStatus("ok", "填写建议已生成");
+    setStatus("ok", "填写建议已生成" + (jobId ? " (已关联岗位和简历)" : ""));
   } catch (e) {
     setStatus("err", "失败: " + e.message);
   } finally {

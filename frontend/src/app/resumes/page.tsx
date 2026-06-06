@@ -7,7 +7,12 @@ const API_BASE = "/api";
 interface Job { id: number; title: string; company: string; }
 interface Template { id: number; name: string; style: string; }
 interface Resume { id: number; name: string; docx_path: string; pdf_path: string; created_at: string; }
-interface Review { problems: { type: string; text: string; reason: string; suggestion: string }[]; overall_status: string; }
+interface Review {
+  problems: { type: string; text: string; reason: string; suggestion: string }[];
+  overall_status: string;
+  version_comparison?: { score_change: string; style_drift: string; detail: string };
+  fact_trace?: { used_facts: string[]; forbidden_violations: string[] };
+}
 
 export default function ResumesPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -159,6 +164,29 @@ export default function ResumesPage() {
             </div>
           ))}
           {review.problems.length === 0 && <p className="text-sm text-green-600">未发现问题。</p>}
+          {review.version_comparison && (
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <h3 className="text-sm font-semibold text-blue-800 mb-2">版本对比</h3>
+              <div className="grid gap-2 text-sm">
+                <div><span className="text-blue-600">质量变化:</span> {review.version_comparison.score_change}</div>
+                <div><span className="text-blue-600">风格漂移:</span> {review.version_comparison.style_drift}</div>
+                <p className="text-blue-600 text-xs">{review.version_comparison.detail}</p>
+              </div>
+            </div>
+          )}
+          {review.fact_trace && (
+            <div className="mt-4 p-3 bg-green-50 rounded-lg">
+              <h3 className="text-sm font-semibold text-green-800 mb-2">事实追溯</h3>
+              {review.fact_trace.used_facts?.length > 0 && (
+                <p className="text-xs text-green-600">使用事实: {review.fact_trace.used_facts.join(", ")}</p>
+              )}
+              {review.fact_trace.forbidden_violations?.length > 0 ? (
+                <p className="text-xs text-red-600">违规: {review.fact_trace.forbidden_violations.join(", ")}</p>
+              ) : (
+                <p className="text-xs text-green-600">无禁止声明违规</p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

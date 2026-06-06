@@ -13,13 +13,14 @@ interface Job {
 }
 
 interface Match {
-  id: number;
-  job_id: number;
-  score: number;
-  recommendation: string;
-  summary: string;
-  match_reasons: string[];
-  risks: string[];
+  id: number; job_id: number;
+  score: number; decision: string;
+  decision_reasons: string;
+  hard_filter_passed: boolean;
+  hard_filter_details: string[];
+  user_confirm_required: string[];
+  application_strategy: string;
+  match_reasons: string[]; risks: string[];
   resume_strategy: string[];
 }
 
@@ -62,10 +63,10 @@ export default function JobMatchPage() {
   };
 
   const getRecLabel = (r: string) =>
-    ({ apply: "建议投递", review: "需评估", skip: "不推荐" }[r] || r);
+    ({ apply: "建议投递", maybe: "需确认", skip: "不推荐", risky: "高风险" }[r] || r);
 
   const getRecColor = (r: string) =>
-    ({ apply: "bg-green-100 text-green-700", review: "bg-amber-100 text-amber-700", skip: "bg-red-100 text-red-700" }[r] || "");
+    ({ apply: "bg-green-100 text-green-700", maybe: "bg-amber-100 text-amber-700", skip: "bg-red-100 text-red-700", risky: "bg-orange-100 text-orange-700" }[r] || "");
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
@@ -107,12 +108,35 @@ export default function JobMatchPage() {
             <div className={`text-4xl font-bold ${getScoreColor(match.score)}`}>{match.score}</div>
             <div>
               <div className="text-lg font-semibold text-zinc-800">匹配度评分</div>
-              <span className={`text-xs px-2 py-0.5 rounded ${getRecColor(match.recommendation)}`}>
-                {getRecLabel(match.recommendation)}
+              <span className={`text-xs px-2 py-0.5 rounded ${getRecColor(match.decision)}`}>
+                {getRecLabel(match.decision)}
               </span>
             </div>
           </div>
-          <p className="text-zinc-600 mb-6">{match.summary}</p>
+          <p className="text-zinc-600 mb-4">{match.decision_reasons}</p>
+
+          {match.hard_filter_details?.length > 0 && (
+            <div className="mb-4 p-3 bg-zinc-50 rounded-lg">
+              <h3 className="text-xs font-semibold text-zinc-600 mb-1">硬性条件检查</h3>
+              <ul className="list-disc list-inside text-xs text-zinc-500 space-y-0.5">
+                {match.hard_filter_details.map((h, i) => <li key={i}>{h}</li>)}
+              </ul>
+            </div>
+          )}
+          {match.user_confirm_required?.length > 0 && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <h3 className="text-sm font-semibold text-amber-700 mb-1">需要你确认</h3>
+              <ul className="list-disc list-inside text-sm text-amber-600 space-y-1">
+                {match.user_confirm_required.map((u, i) => <li key={i}>{u}</li>)}
+              </ul>
+            </div>
+          )}
+          {match.application_strategy && (
+            <div className="mb-4 p-3 bg-indigo-50 rounded-lg">
+              <h3 className="text-xs font-semibold text-indigo-700 mb-1">投递策略建议</h3>
+              <p className="text-sm text-indigo-600">{match.application_strategy}</p>
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="bg-green-50 rounded-lg p-4">

@@ -436,6 +436,9 @@ function ExperienceSection({ profile, onUpdate }: { profile: Profile; onUpdate: 
                     </select>
                     <button onClick={() => setForm({ ...form, facts: form.facts.filter((_, j) => j !== i) })} className="text-red-400 text-xs">删除</button>
                   </div>
+                  <input value={f.interview_explanation} onChange={(e) => {
+                    const nf = [...form.facts]; nf[i] = { ...nf[i], interview_explanation: e.target.value }; setForm({ ...form, facts: nf });
+                  }} className="w-full border border-zinc-200 rounded px-2 py-1 text-xs mt-1" placeholder="面试时怎么讲：可以说明架构设计思路和选型原因..." />
                 </div>
               ))}
               <button onClick={() => setForm({ ...form, facts: [...form.facts, { content: "", claim_level: "participated", risk_level: "stable", interview_explanation: "", sort_order: form.facts.length }] })}
@@ -452,6 +455,16 @@ function ExperienceSection({ profile, onUpdate }: { profile: Profile; onUpdate: 
                 <label className="block text-xs font-medium text-zinc-500">禁止声称 (forbidden_claims) 逗号分隔</label>
                 <input value={form.forbidden_claims.join(", ")} onChange={(e) => setForm({ ...form, forbidden_claims: e.target.value.split(",").map(s => s.trim()) })}
                   className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500">证明材料 (evidence) 逗号分隔，如链接/截图路径</label>
+                <input value={form.evidence.join(", ")} onChange={(e) => setForm({ ...form, evidence: e.target.value.split(",").map(s => s.trim()) })}
+                  className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" placeholder="https://github.com/xxx, 文件路径..." />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500">可迁移技能 (transferable_skills) 逗号分隔</label>
+                <input value={form.transferable_skills.join(", ")} onChange={(e) => setForm({ ...form, transferable_skills: e.target.value.split(",").map(s => s.trim()) })}
+                  className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" placeholder="系统设计, 需求分析, 项目管理" />
               </div>
             </div>
 

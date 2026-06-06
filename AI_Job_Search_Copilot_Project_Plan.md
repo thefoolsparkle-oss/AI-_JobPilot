@@ -65,7 +65,7 @@
 | P-009 | 计划书内部仍有旧状态和新状态互相矛盾 | 读者无法判断真实进度，也会误导下一步开发 | ✅ 已解决 | 全部状态同步：问题台账、新增解决记录、顶部进度表均已更新 |
 | P-010 | 当前测试数量和质量描述不准确 | "E2E 已完成"的结论过早，无法覆盖真实失败场景 | 🟡 部分解决 | 已补充断言（数据存在、加密验证、Base64 迁移、OCR 上传安全、404 处理、状态检查）；真实 LLM 调用测试需 API Key |
 | P-012 | OCR 上传接口缺少上传依赖和文件安全限制 | 新环境上传可能不可用；恶意文件名可能造成路径穿越或覆盖 | ✅ 已解决 | 补 `python-multipart`，上传接口限制图片后缀、5MB 大小、随机文件名，并测试拒绝非图片和清洗路径 |
-| P-012 | 履历事实库缺少 V1-1 所需字段（evidence、claim_level、risk_level、interview_explanation、transferable_skills） | 简历无法做到"每句都可追溯"，匹配和审查也缺少量化依据 | ✅ 已解决 | Experience 表加 evidence + transferable_skills；ExperienceFact 加 claim_level + risk_level + interview_explanation；前后端完整打通 |
+| P-012b | 履历事实库缺少 V1-1 所需字段（evidence、claim_level、risk_level、interview_explanation、transferable_skills） | 简历无法做到"每句都可追溯" | ✅ 已解决 | Experience 表加 evidence + transferable_skills；ExperienceFact 加 claim_level + risk_level + interview_explanation |
 | P-013 | 匹配判断仍输出 score/recommendation，不符合 V1-3 的"决策"要求 | 用户看到分数但不知道具体该不该投、需要确认什么 | ✅ 已解决 | 匹配 Agent 升级输出 decision(apply/maybe/skip/risky) + decision_reasons + hard_filter_passed + user_confirm_required |
 | P-014 | 岗位发现缺少"搜索→保存→解析→批量评分"的闭环 | 搜索结果只展示，不会自动变成候选岗位和匹配排序 | ✅ 已解决 | POST /api/discover/save-and-parse 实现搜索→去重保存→自动解析→自动匹配完整流水线 |
 | P-015 | V1-4 简历审查 Agent 缺少版本间对比 | 无法检测不同版本间风格漂移 | ✅ 已解决 | 审查 Agent 接收 previous_version 参数，输出 version_comparison（score_change/style_drift/detail） |
@@ -1891,16 +1891,19 @@ CRM 要从“记录状态”升级成“决策反馈系统”：
 
 | V1 目标 | 状态 | 做了什么 |
 |---------|------|----------|
-| V1-1 履历事实库 2.0 | ✅ | 数据模型已补全 evidence/claim_level/risk_level/interview_explanation/transferable_skills；前端表单全字段编辑 |
-| V1-2 岗位发现 2.0 | ✅ | 搜索→去重→保存Job→自动解析JD→自动匹配 → POST /api/discover/save-and-parse |
-| V1-3 匹配决策 2.0 | ✅ | 匹配输出从 score 升级为 decision(apply/maybe/skip/risky) + hard_filter + confirm_required |
+| V1-1 履历事实库 2.0 | ✅ | 数据模型已补全；P-019 修复后所有 Agent 已接收完整结构化 facts（id/claim_level/risk_level/evidence） |
+| V1-2 岗位发现 2.0 | ✅ | 搜索→去重→抓取页面→解析 JD→自动匹配；P-021 修复后使用 WebFetcher 真实抓取 |
+| V1-3 匹配决策 2.0 | ✅ | 决策输出 + P-020 修复后新字段完整落库（hard_filter/user_confirm/strategy） |
 | V1-4 简历生成审查 2.0 | ✅ | 简历 Agent 含 claim_level校准/risk_level过滤/forbidden检查/fact_trace；审查 Agent 支持跨版本对比 |
 | V1-5 申请表辅助 2.0 | ✅ | API 支持 resume_id 关联，Agent 理解 claim_level/risk_level，前端支持简历版本选择 |
 | V2-1 浏览器投递助手 2.0 | ✅ | 插件支持识别页面类型(JD/表单)，表单字段检测，调用助手 API 生成填写建议 |
-| V2-2 求职 CRM 2.0 | ✅ | 投递优先级/面试记录/拒绝原因/回复率统计/面试率/策略建议 → GET /api/tracker/analytics |
+| V2-2 求职 CRM 2.0 | ✅ | LLM 驱动的策略分析 + 硬编码fallback；P-018 已修复矛盾 |
 | - | - | - |
 | P-017 | V2-1 浏览器插件尚需真实表单测试 | 📋 | 待真实招聘网站验证 |
-| P-018 | V2-2 策略建议基于简单规则，未接入 LLM | 📋 | 后续升级为 Agent 驱动的策略分析 |
+| P-018 | V2-2 策略建议基于简单规则，未接入 LLM | 🔴 阻塞 | ✅ 已解决 | CRM analytics 先尝试 LLM 生成策略建议，失败或降级时回退规则；P-018 与 V2-2 矛盾已解除 |
+| P-019 | 履历事实字段已建模但未完整传给 Agent | 匹配/简历/表单 Agent 收不到 claim_level/risk_level/evidence 等关键字段 | ✅ 已解决 | job_matching_service/application_service/applications.py 中 profile_data 全部改为结构化 facts 对象 |
+| P-020 | 匹配决策新字段未落库 | hard_filter_passed/user_confirm/application_strategy 只在 Agent 输出，没存入 JobMatch | ✅ 已解决 | JobMatch 模型加 6 个新字段，matching_service 和 API 完整落库并返回 |
+| P-021 | save-and-parse 只用 snippet 不抓真实 JD | 搜索结果标题+摘要当 JD，不是真实获取 | ✅ 已解决 | save-and-parse 改用 WebFetcher 打开 URL 获取完整页面内容，失败时回退 snippet |
 
 
 

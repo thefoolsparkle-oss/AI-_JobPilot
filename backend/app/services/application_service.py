@@ -43,8 +43,21 @@ class ResumeGenerationService:
                 {
                     "type": e.experience_type, "name": e.name, "org": e.organization,
                     "title": e.title, "start": e.start_date, "end": e.end_date,
-                    "tech_stack": e.tech_stack, "facts": [f.content for f in e.facts],
-                    "allowed_claims": e.allowed_claims, "forbidden_claims": e.forbidden_claims,
+                    "tech_stack": e.tech_stack,
+                    "allowed_claims": e.allowed_claims,
+                    "forbidden_claims": e.forbidden_claims,
+                    "evidence": e.evidence,
+                    "transferable_skills": e.transferable_skills,
+                    "facts": [
+                        {
+                            "id": f.id,
+                            "content": f.content,
+                            "claim_level": f.claim_level,
+                            "risk_level": f.risk_level,
+                            "interview_explanation": f.interview_explanation,
+                        }
+                        for f in e.facts
+                    ],
                 }
                 for e in profile.experiences
             ],
@@ -122,8 +135,13 @@ class ApplicationService:
             ],
             "experiences": [
                 {"type": e.experience_type, "name": e.name, "org": e.organization, "title": e.title,
-                 "facts": [f.content for f in e.facts], "allowed_claims": e.allowed_claims,
-                 "forbidden_claims": e.forbidden_claims}
+                 "allowed_claims": e.allowed_claims, "forbidden_claims": e.forbidden_claims,
+                 "evidence": e.evidence, "transferable_skills": e.transferable_skills,
+                 "facts": [
+                     {"id": f.id, "content": f.content, "claim_level": f.claim_level,
+                      "risk_level": f.risk_level, "interview_explanation": f.interview_explanation}
+                     for f in e.facts
+                 ]}
                 for e in profile.experiences
             ],
             "skills": [s.name for s in profile.skills],

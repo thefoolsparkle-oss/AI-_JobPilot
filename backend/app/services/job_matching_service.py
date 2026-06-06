@@ -24,15 +24,22 @@ class JobMatchingService:
             ],
             "experiences": [
                 {
-                    "type": e.experience_type,
-                    "name": e.name,
-                    "org": e.organization,
-                    "title": e.title,
-                    "start": e.start_date,
-                    "end": e.end_date,
+                    "type": e.experience_type, "name": e.name, "org": e.organization,
+                    "title": e.title, "start": e.start_date, "end": e.end_date,
                     "tech_stack": e.tech_stack,
-                    "facts": [f.content for f in e.facts],
                     "allowed_claims": e.allowed_claims,
+                    "evidence": e.evidence,
+                    "transferable_skills": e.transferable_skills,
+                    "facts": [
+                        {
+                            "id": f.id,
+                            "content": f.content,
+                            "claim_level": f.claim_level,
+                            "risk_level": f.risk_level,
+                            "interview_explanation": f.interview_explanation,
+                        }
+                        for f in e.facts
+                    ],
                 }
                 for e in profile.experiences
             ],
@@ -78,6 +85,11 @@ class JobMatchingService:
             job_id=job_id,
             score=result.get("score", 0),
             recommendation=result.get("decision", result.get("recommendation", "review")),
+            decision_reasons=result.get("decision_reasons", result.get("summary", "")),
+            hard_filter_passed=result.get("hard_filter_passed", True),
+            hard_filter_details=result.get("hard_filter_details", []),
+            user_confirm_required=result.get("user_confirm_required", []),
+            application_strategy=result.get("application_strategy", ""),
             summary=result.get("decision_reasons", result.get("summary", "")),
             match_reasons=result.get("match_reasons", []),
             risks=result.get("risks", []),

@@ -129,15 +129,26 @@ async def save_search_results(req: SearchQueryRequest, db: Session = Depends(get
     for r in search_results:
         if not r.get("url") or not r.get("title"):
             continue
-        # Check for duplicates
         from sqlalchemy import select
         existing = db.execute(select(Job).where(Job.url == r["url"])).scalar_one_or_none()
         if existing:
             saved_jobs.append({"job_id": existing.id, "title": existing.title, "status": "skipped_dup"})
             continue
 
-        # Save as job with snippet as raw JD
-        jd_text = f"{r.get('title', '')}\n{r.get('snippet', '')}"
+        # Try to fetch full page content, fall back to snippet
+        jd_text = ""
+        try:
+            from app.services.web_fetcher import WebFetcher
+            fetcher = WebFetcher()
+            page = await fetcher.fetch_page(r["url"])
+            if page.get("content") and len(page["content"]) > 100:
+                jd_text = page["content"]
+        except Exception:
+            pass
+
+        if not jd_text:
+            jd_text = f"{r.get('title', '')}\n{r.get('snippet', '')}"
+
         job = job_svc.parse_and_save(db, jd_text, r["url"], "search")
         saved_jobs.append({"job_id": job.id, "title": job.title, "status": "saved"})
 
@@ -160,8 +171,13 @@ def form_assist(req: FormAssistRequest, db: Session = Depends(get_db)):
         "education": [{"school": e.school, "degree": e.degree, "major": e.major} for e in profile.education],
         "experiences": [
             {"type": e.experience_type, "name": e.name, "org": e.organization, "title": e.title,
-             "tech_stack": e.tech_stack, "facts": [f.content for f in e.facts],
-             "allowed_claims": e.allowed_claims, "forbidden_claims": e.forbidden_claims}
+             "tech_stack": e.tech_stack,
+             "allowed_claims": e.allowed_claims, "forbidden_claims": e.forbidden_claims,
+             "facts": [
+                 {"id": f.id, "content": f.content, "claim_level": f.claim_level,
+                  "risk_level": f.risk_level, "interview_explanation": f.interview_explanation}
+                 for f in e.facts
+             ]}
             for e in profile.experiences
         ],
         "skills": [{"name": s.name, "level": s.level, "category": s.category} for s in profile.skills],
