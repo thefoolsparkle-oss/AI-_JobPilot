@@ -1,6 +1,6 @@
 import json
 import logging
-from app.llm import DeepSeekProvider
+from app.utils.agent_base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +37,11 @@ FALLBACK_APP = {
 }
 
 
-class ApplicationWriterAgent:
-    def __init__(self):
-        self.llm = DeepSeekProvider()
+class ApplicationWriterAgent(BaseAgent):
+    agent_name = "application_writer"
 
     def generate(self, profile_data: dict, job_data: dict, match_data: dict) -> dict:
-        try:
-            prompt = f"""Candidate Profile:
+        prompt = f"""Candidate Profile:
 {json.dumps(profile_data, ensure_ascii=False, indent=2)}
 
 Job:
@@ -53,23 +51,9 @@ Match Analysis:
 {json.dumps(match_data, ensure_ascii=False, indent=2)}
 
 Generate the application materials."""
-            response = self.llm.chat(
-                messages=[
-                    {"role": "system", "content": APP_WRITER_SYSTEM},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.4,
-                agent_name="application_writer",
-            )
-            if "```json" in response:
-                start = response.index("```json") + 7
-                end = response.index("```", start)
-                response = response[start:end].strip()
-            elif "```" in response:
-                start = response.index("```") + 3
-                end = response.index("```", start)
-                response = response[start:end].strip()
-            return json.loads(response)
-        except Exception as e:
-            logger.warning(f"Application writer failed: {e}")
-            return dict(FALLBACK_APP)
+        return self._call_llm_json(
+            system_prompt=APP_WRITER_SYSTEM,
+            user_prompt=prompt,
+            fallback=FALLBACK_APP,
+            temperature=0.4,
+        )

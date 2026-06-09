@@ -1,30 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-
-const API_BASE = "/api";
-
-interface Job { id: number; title: string; company: string; }
-interface Package {
-  id: number;
-  self_intro: string;
-  application_reason: string;
-  hr_message: string;
-  cover_letter: string;
-  form_answers: { question: string; answer: string }[];
-  risk_notes: string;
-  interview_questions: string[];
-}
+import { api, Job, ApplicationPackage } from "@/lib/api";
+import { LoadingSpinner } from "@/components/UIComponents";
 
 export default function ApplicationsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<number>(0);
-  const [pkg, setPkg] = useState<Package | null>(null);
+  const [pkg, setPkg] = useState<ApplicationPackage | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch(`${API_BASE}/jobs`).then(r => r.json()).then(setJobs).catch(console.error);
+    api.jobs.list().then(setJobs).catch(console.error);
   }, []);
 
   const handleGenerate = async () => {
@@ -32,15 +20,9 @@ export default function ApplicationsPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/applications/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: selectedJob }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      setPkg(await res.json());
-    } catch (e: any) {
-      setError(e.message);
+      setPkg(await api.applications.generate(selectedJob));
+    } catch (e: unknown) {
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -64,8 +46,9 @@ export default function ApplicationsPage() {
           className="px-6 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50">
           {loading ? "生成中..." : "生成材料包"}
         </button>
-        {error && <p className="text-red-500 text-sm">{error}</p>}
       </div>
+
+      {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
       {pkg && (
         <div className="space-y-4">

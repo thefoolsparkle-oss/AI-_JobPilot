@@ -1,9 +1,11 @@
 from typing import Optional
+import re
 from sqlalchemy.orm import Session
 
 from app.db.models import Job, JobMatch
 from app.agents.job_matcher import JobMatcherAgent
 from app.services.profile_service import ProfileService
+from app.utils.profile_utils import ProfileDataBuilder
 
 
 class JobMatchingService:
@@ -15,48 +17,8 @@ class JobMatchingService:
         profile_svc = ProfileService()
         profile = profile_svc.get_full_profile(db)
 
-        # Collect key profile data for matching
-        profile_data = {
-            "name": profile.name,
-            "education": [
-                {"school": e.school, "degree": e.degree, "major": e.major, "start": e.start_date, "end": e.end_date}
-                for e in profile.education
-            ],
-            "experiences": [
-                {
-                    "type": e.experience_type, "name": e.name, "org": e.organization,
-                    "title": e.title, "start": e.start_date, "end": e.end_date,
-                    "tech_stack": e.tech_stack,
-                    "allowed_claims": e.allowed_claims,
-                    "evidence": e.evidence,
-                    "transferable_skills": e.transferable_skills,
-                    "facts": [
-                        {
-                            "id": f.id,
-                            "content": f.content,
-                            "claim_level": f.claim_level,
-                            "risk_level": f.risk_level,
-                            "interview_explanation": f.interview_explanation,
-                        }
-                        for f in e.facts
-                    ],
-                }
-                for e in profile.experiences
-            ],
-            "skills": [{"name": s.name, "level": s.level, "category": s.category} for s in profile.skills],
-            "preferences": [
-                {
-                    "target_roles": p.target_roles,
-                    "preferred_locations": p.preferred_locations,
-                    "remote_preference": p.remote_preference,
-                    "min_duration": p.min_duration_weeks,
-                    "available_from": p.available_from,
-                }
-                for p in profile.preferences
-            ],
-        }
+        profile_data = ProfileDataBuilder.build_from_orm(profile)
 
-        # Job data for matching
         job_data = {
             "title": job.title,
             "company": job.company,
@@ -67,15 +29,13 @@ class JobMatchingService:
         agent = JobMatcherAgent()
         result = agent.match(profile_data, job_data)
 
-        # Check rule-based hard filters
         if profile.preferences:
             prefs = profile.preferences[0]
             jd_filters = job.parsed_jd.get("hard_filters", []) if job.parsed_jd else []
             for f in jd_filters:
-                if prefs.min_duration_weeks and "月" in f:
-                    import re
-                    match = re.search(r'(\d+)\s*个月', f)
-                    if match and prefs.min_duration_weeks < int(match.group(1)):
+                if prefs.min_duration_weeks:
+                    matched = self._parse_duration_months(f)
+                    if matched and prefs.min_duration_weeks < matched:
                         result["score"] = min(result.get("score", 50), 45)
                         result["recommendation"] = "review"
                         if "时长不匹配" not in str(result.get("risks", [])):
@@ -105,3 +65,19 @@ class JobMatchingService:
         return db.execute(
             select(JobMatch).where(JobMatch.job_id == job_id).order_by(JobMatch.created_at.desc())
         ).scalars().first()
+
+    @staticmethod
+    def _parse_duration_months(text: str) -> Optional[int]:
+        patterns = [
+            r'(\d+)\s*个月',
+            r'(\d+)\s*月(?:[^0-9]|$)',
+            r'(\d+)\s*mo(?:nth)?s?',
+        ]
+        for pat in patterns:
+            m = re.search(pat, text, re.IGNORECASE)
+            if m:
+                return int(m.group(1))
+        match_weeks = re.search(r'(\d+)\s*周', text)
+        if match_weeks:
+            return int(match_weeks.group(1))
+        return None

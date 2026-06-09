@@ -9,10 +9,24 @@ def _now():
     return datetime.now(timezone.utc)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    profile = relationship("Profile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+
+
 class Profile(Base):
     __tablename__ = "profiles"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     name = Column(String(100), default="")
     email = Column(String(200), default="")
     phone = Column(String(50), default="")
@@ -23,6 +37,7 @@ class Profile(Base):
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
 
+    user = relationship("User", back_populates="profile")
     education = relationship("Education", back_populates="profile", cascade="all, delete-orphan")
     experiences = relationship("Experience", back_populates="profile", cascade="all, delete-orphan")
     skills = relationship("Skill", back_populates="profile", cascade="all, delete-orphan")
@@ -130,6 +145,7 @@ class ResumeVersion(Base):
     __tablename__ = "resume_versions"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     template_id = Column(Integer, ForeignKey("resume_templates.id"))
     job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True)
     name = Column(String(300), default="")
@@ -144,6 +160,7 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     title = Column(String(300), default="")
     company = Column(String(300), default="")
     location = Column(String(300), default="")
@@ -201,6 +218,7 @@ class AgentRun(Base):
     __tablename__ = "agent_runs"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     agent_name = Column(String(100))
     input_summary = Column(Text, default="")
     output_summary = Column(Text, default="")
@@ -227,6 +245,7 @@ class ApplicationRecord(Base):
     __tablename__ = "application_records"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     job_id = Column(Integer, ForeignKey("jobs.id"))
     status = Column(String(50), default="discovered")
     priority = Column(Integer, default=3)

@@ -1,6 +1,6 @@
 import json
 import logging
-from app.llm import DeepSeekProvider
+from app.utils.agent_base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -23,30 +23,14 @@ Rules:
 FALLBACK_STRATEGY = {"queries": [], "negative_keywords": [], "preferred_sources": []}
 
 
-class SearchStrategyAgent:
-    def __init__(self):
-        self.llm = DeepSeekProvider()
+class SearchStrategyAgent(BaseAgent):
+    agent_name = "search_strategy"
 
     def generate_strategy(self, preferences: dict) -> dict:
-        try:
-            prompt = f"User preferences:\n{json.dumps(preferences, ensure_ascii=False, indent=2)}"
-            response = self.llm.chat(
-                messages=[
-                    {"role": "system", "content": SEARCH_STRATEGY_SYSTEM},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-                agent_name="search_strategy",
-            )
-            if "```json" in response:
-                start = response.index("```json") + 7
-                end = response.index("```", start)
-                response = response[start:end].strip()
-            elif "```" in response:
-                start = response.index("```") + 3
-                end = response.index("```", start)
-                response = response[start:end].strip()
-            return json.loads(response)
-        except Exception as e:
-            logger.warning(f"Search strategy failed: {e}")
-            return dict(FALLBACK_STRATEGY)
+        prompt = f"User preferences:\n{json.dumps(preferences, ensure_ascii=False, indent=2)}"
+        return self._call_llm_json(
+            system_prompt=SEARCH_STRATEGY_SYSTEM,
+            user_prompt=prompt,
+            fallback=FALLBACK_STRATEGY,
+            temperature=0.3,
+        )

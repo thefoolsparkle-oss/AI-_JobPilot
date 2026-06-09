@@ -15,28 +15,18 @@ from app.schemas.profile import (
 
 
 class ProfileService:
-    def get_or_create_profile(self, db: Session) -> Profile:
-        profile = db.execute(select(Profile).limit(1)).scalar_one_or_none()
+    def _get_or_create_profile(self, db: Session, user_id: int) -> Profile:
+        profile = db.execute(
+            select(Profile).where(Profile.user_id == user_id)
+        ).scalar_one_or_none()
         if not profile:
-            profile = Profile()
+            profile = Profile(user_id=user_id)
             db.add(profile)
             db.commit()
             db.refresh(profile)
         return profile
 
-    def _get_profile_with_relations(self, db: Session) -> Profile:
-        stmt = (
-            select(Profile)
-            .options(
-                selectinload(Profile.education),
-                selectinload(Profile.experiences).selectinload(Experience.facts),
-                selectinload(Profile.skills),
-                selectinload(Profile.preferences),
-            )
-        )
-        return self.get_or_create_profile(db)
-
-    def get_full_profile(self, db: Session) -> ProfileSchema:
+    def get_full_profile(self, db: Session, user_id: int) -> ProfileSchema:
         profile = db.execute(
             select(Profile)
             .options(
@@ -45,31 +35,35 @@ class ProfileService:
                 selectinload(Profile.skills),
                 selectinload(Profile.preferences),
             )
+            .where(Profile.user_id == user_id)
         ).scalar_one_or_none()
         if not profile:
-            profile = Profile()
+            profile = Profile(user_id=user_id)
             db.add(profile)
             db.commit()
         return ProfileSchema.model_validate(profile)
 
-    def update_profile(self, db: Session, data: ProfileUpdate) -> ProfileSchema:
-        profile = self._get_profile_with_relations(db)
+    def update_profile(self, db: Session, user_id: int, data: ProfileUpdate) -> ProfileSchema:
+        profile = self._get_or_create_profile(db, user_id)
         for key, value in data.model_dump(exclude_unset=True).items():
             setattr(profile, key, value)
         db.commit()
         db.refresh(profile)
         return ProfileSchema.model_validate(profile)
 
-    def add_education(self, db: Session, data: EducationSchema) -> EducationSchema:
-        profile = self._get_profile_with_relations(db)
+    def add_education(self, db: Session, user_id: int, data: EducationSchema) -> EducationSchema:
+        profile = self._get_or_create_profile(db, user_id)
         edu = Education(profile_id=profile.id, **data.model_dump(exclude={"id", "profile_id"}))
         db.add(edu)
         db.commit()
         db.refresh(edu)
         return EducationSchema.model_validate(edu)
 
-    def update_education(self, db: Session, edu_id: int, data: EducationSchema) -> Optional[EducationSchema]:
-        edu = db.get(Education, edu_id)
+    def update_education(self, db: Session, user_id: int, edu_id: int, data: EducationSchema) -> Optional[EducationSchema]:
+        profile = self._get_or_create_profile(db, user_id)
+        edu = db.execute(
+            select(Education).where(Education.id == edu_id, Education.profile_id == profile.id)
+        ).scalar_one_or_none()
         if not edu:
             return None
         for key, value in data.model_dump(exclude={"id", "profile_id"}, exclude_unset=True, exclude_defaults=True).items():
@@ -78,16 +72,19 @@ class ProfileService:
         db.refresh(edu)
         return EducationSchema.model_validate(edu)
 
-    def delete_education(self, db: Session, edu_id: int) -> bool:
-        edu = db.get(Education, edu_id)
+    def delete_education(self, db: Session, user_id: int, edu_id: int) -> bool:
+        profile = self._get_or_create_profile(db, user_id)
+        edu = db.execute(
+            select(Education).where(Education.id == edu_id, Education.profile_id == profile.id)
+        ).scalar_one_or_none()
         if not edu:
             return False
         db.delete(edu)
         db.commit()
         return True
 
-    def add_experience(self, db: Session, data: ExperienceSchema) -> ExperienceSchema:
-        profile = self._get_profile_with_relations(db)
+    def add_experience(self, db: Session, user_id: int, data: ExperienceSchema) -> ExperienceSchema:
+        profile = self._get_or_create_profile(db, user_id)
         facts_data = data.facts
         exp = Experience(
             profile_id=profile.id,
@@ -107,13 +104,15 @@ class ProfileService:
         db.refresh(exp)
         return ExperienceSchema.model_validate(exp)
 
-    def update_experience(self, db: Session, exp_id: int, data: ExperienceSchema) -> Optional[ExperienceSchema]:
-        exp = db.get(Experience, exp_id)
+    def update_experience(self, db: Session, user_id: int, exp_id: int, data: ExperienceSchema) -> Optional[ExperienceSchema]:
+        profile = self._get_or_create_profile(db, user_id)
+        exp = db.execute(
+            select(Experience).where(Experience.id == exp_id, Experience.profile_id == profile.id)
+        ).scalar_one_or_none()
         if not exp:
             return None
         for key, value in data.model_dump(exclude={"id", "profile_id", "facts"}, exclude_unset=True, exclude_defaults=True).items():
             setattr(exp, key, value)
-        # Always replace facts when facts key is present in input
         update_data = data.model_dump(exclude_unset=True)
         if "facts" in update_data:
             for old_fact in exp.facts:
@@ -130,32 +129,38 @@ class ProfileService:
         db.refresh(exp)
         return ExperienceSchema.model_validate(exp)
 
-    def delete_experience(self, db: Session, exp_id: int) -> bool:
-        exp = db.get(Experience, exp_id)
+    def delete_experience(self, db: Session, user_id: int, exp_id: int) -> bool:
+        profile = self._get_or_create_profile(db, user_id)
+        exp = db.execute(
+            select(Experience).where(Experience.id == exp_id, Experience.profile_id == profile.id)
+        ).scalar_one_or_none()
         if not exp:
             return False
         db.delete(exp)
         db.commit()
         return True
 
-    def add_skill(self, db: Session, data: SkillSchema) -> SkillSchema:
-        profile = self._get_profile_with_relations(db)
+    def add_skill(self, db: Session, user_id: int, data: SkillSchema) -> SkillSchema:
+        profile = self._get_or_create_profile(db, user_id)
         skill = Skill(profile_id=profile.id, **data.model_dump(exclude={"id", "profile_id"}))
         db.add(skill)
         db.commit()
         db.refresh(skill)
         return SkillSchema.model_validate(skill)
 
-    def delete_skill(self, db: Session, skill_id: int) -> bool:
-        skill = db.get(Skill, skill_id)
+    def delete_skill(self, db: Session, user_id: int, skill_id: int) -> bool:
+        profile = self._get_or_create_profile(db, user_id)
+        skill = db.execute(
+            select(Skill).where(Skill.id == skill_id, Skill.profile_id == profile.id)
+        ).scalar_one_or_none()
         if not skill:
             return False
         db.delete(skill)
         db.commit()
         return True
 
-    def get_or_create_preference(self, db: Session) -> JobPreference:
-        profile = self._get_profile_with_relations(db)
+    def get_or_create_preference(self, db: Session, user_id: int) -> JobPreference:
+        profile = self._get_or_create_profile(db, user_id)
         pref = db.execute(
             select(JobPreference).where(JobPreference.profile_id == profile.id)
         ).scalar_one_or_none()
@@ -166,8 +171,8 @@ class ProfileService:
             db.refresh(pref)
         return pref
 
-    def update_preferences(self, db: Session, data: JobPreferenceSchema) -> JobPreferenceSchema:
-        pref = self.get_or_create_preference(db)
+    def update_preferences(self, db: Session, user_id: int, data: JobPreferenceSchema) -> JobPreferenceSchema:
+        pref = self.get_or_create_preference(db, user_id)
         for key, value in data.model_dump(exclude={"id", "profile_id"}, exclude_unset=True).items():
             setattr(pref, key, value)
         db.commit()

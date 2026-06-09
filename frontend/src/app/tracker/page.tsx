@@ -1,26 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-
-const API_BASE = "/api";
-
-interface Record {
-  id: number; job_id: number; job_title: string; company: string;
-  status: string; status_label: string; priority: number;
-  platform: string; hr_contact: string; notes: string;
-  rejection_reason: string; interview_log: string;
-  applied_at: string | null; follow_up_at: string | null;
-  created_at: string; updated_at: string;
-}
-
-interface Analytics {
-  total: number; applied: number; interviewing: number;
-  offered: number; rejected: number;
-  response_rate: number; interview_rate: number;
-  status_counts: { [key: string]: number };
-  rejection_reasons: { job: string; reason: string }[];
-  recommendations: string[];
-}
+import { api, TrackerRecord, TrackerAnalytics } from "@/lib/api";
+import { LoadingSpinner } from "@/components/UIComponents";
 
 const STATUS_OPTIONS = [
   { value: "discovered", label: "已发现", color: "bg-zinc-100 text-zinc-700" },
@@ -33,20 +15,17 @@ const STATUS_OPTIONS = [
 ];
 
 export default function TrackerPage() {
-  const [records, setRecords] = useState<Record[]>([]);
-  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [records, setRecords] = useState<TrackerRecord[]>([]);
+  const [analytics, setAnalytics] = useState<TrackerAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<number | null>(null);
   const [form, setForm] = useState({ status: "applied", priority: 3, platform: "", hr_contact: "", notes: "", rejection_reason: "", interview_log: "" });
 
   const loadRecords = async () => {
     try {
-      const [recRes, anaRes] = await Promise.all([
-        fetch(`${API_BASE}/tracker/records`),
-        fetch(`${API_BASE}/tracker/analytics`),
-      ]);
-      setRecords(await recRes.json());
-      setAnalytics(await anaRes.json());
+      const [recs, anas] = await Promise.all([api.tracker.records(), api.tracker.analytics()]);
+      setRecords(recs);
+      setAnalytics(anas);
     } catch (e) {
       console.error(e);
     } finally {
@@ -57,16 +36,12 @@ export default function TrackerPage() {
   useEffect(() => { loadRecords(); }, []);
 
   const handleUpdate = async (jobId: number) => {
-    await fetch(`${API_BASE}/tracker/records/${jobId}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    await api.tracker.upsert(jobId, form);
     setEditing(null);
     loadRecords();
   };
 
-  if (loading) return <div className="max-w-5xl mx-auto px-6 py-12 text-zinc-500">加载中...</div>;
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">

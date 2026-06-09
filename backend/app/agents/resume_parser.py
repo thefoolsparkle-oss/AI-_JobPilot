@@ -1,6 +1,6 @@
 import json
 import logging
-from app.llm import DeepSeekProvider
+from app.utils.agent_base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -35,22 +35,14 @@ FALLBACK_EXP = {
 }
 
 
-class ResumeParserAgent:
-    def __init__(self):
-        self.llm = DeepSeekProvider()
+class ResumeParserAgent(BaseAgent):
+    agent_name = "resume_parser"
 
     def parse_experience(self, raw_text: str, experience_type: str) -> dict:
-        try:
-            prompt = f"Experience type: {experience_type}\n\nUser input:\n{raw_text}"
-            response = self.llm.chat(
-                messages=[
-                    {"role": "system", "content": EXTRACT_EXPERIENCE_SYSTEM},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.1,
-                agent_name="resume_parser",
-            )
-            return json.loads(response)
-        except Exception as e:
-            logger.warning(f"Resume parse failed: {e}")
-            return dict(FALLBACK_EXP)
+        prompt = f"Experience type: {experience_type}\n\nUser input:\n{raw_text}"
+        return self._call_llm_json(
+            system_prompt=EXTRACT_EXPERIENCE_SYSTEM,
+            user_prompt=prompt,
+            fallback=FALLBACK_EXP,
+            temperature=0.1,
+        )

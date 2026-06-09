@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.db.models import User
+from app.auth import get_current_user
 from app.services.job_discovery_service import JobService
 from app.schemas.job import JobParseRequest
 
@@ -10,10 +12,10 @@ service = JobService()
 
 
 @router.post("/parse")
-def parse_jd(req: JobParseRequest, db: Session = Depends(get_db)):
+def parse_jd(req: JobParseRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not req.jd_text.strip():
         raise HTTPException(status_code=400, detail="JD text is required")
-    job = service.parse_and_save(db, req.jd_text, req.url, req.source)
+    job = service.parse_and_save(db, user.id, req.jd_text, req.url, req.source)
     return {
         "id": job.id,
         "title": job.title,
@@ -28,8 +30,8 @@ def parse_jd(req: JobParseRequest, db: Session = Depends(get_db)):
 
 
 @router.get("")
-def list_jobs(db: Session = Depends(get_db)):
-    jobs = service.list_jobs(db)
+def list_jobs(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    jobs = service.list_jobs(db, user.id)
     return [
         {
             "id": j.id,
@@ -47,8 +49,8 @@ def list_jobs(db: Session = Depends(get_db)):
 
 
 @router.get("/{job_id}")
-def get_job(job_id: int, db: Session = Depends(get_db)):
-    job = service.get_job(db, job_id)
+def get_job(job_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    job = service.get_job(db, job_id, user.id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return {
@@ -66,56 +68,34 @@ def get_job(job_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{job_id}/match")
-def match_job(job_id: int, db: Session = Depends(get_db)):
+def match_job(job_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from app.services.job_matching_service import JobMatchingService
     match_svc = JobMatchingService()
-    match = match_svc.match_job(db, job_id)
+    match = match_svc.match_job(db, user.id, job_id)
     if not match:
         raise HTTPException(status_code=404, detail="Job not found or not parsed")
-    return {
-        "id": match.id, "job_id": match.job_id,
-        "score": match.score, "decision": match.recommendation,
-        "decision_reasons": match.decision_reasons,
-        "hard_filter_passed": match.hard_filter_passed,
-        "hard_filter_details": match.hard_filter_details,
-        "user_confirm_required": match.user_confirm_required,
-        "application_strategy": match.application_strategy,
-        "match_reasons": match.match_reasons,
-        "risks": match.risks,
-        "resume_strategy": match.resume_strategy,
-    }
+    return _match_response(match)
 
 
 @router.get("/{job_id}/match")
-def get_match(job_id: int, db: Session = Depends(get_db)):
+def get_match(job_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from app.services.job_matching_service import JobMatchingService
     match_svc = JobMatchingService()
     match = match_svc.get_match(db, job_id)
     if not match:
         raise HTTPException(status_code=404, detail="No match found for this job")
-    return {
-        "id": match.id, "job_id": match.job_id,
-        "score": match.score, "decision": match.recommendation,
-        "decision_reasons": match.decision_reasons,
-        "hard_filter_passed": match.hard_filter_passed,
-        "hard_filter_details": match.hard_filter_details,
-        "user_confirm_required": match.user_confirm_required,
-        "application_strategy": match.application_strategy,
-        "match_reasons": match.match_reasons,
-        "risks": match.risks,
-        "resume_strategy": match.resume_strategy,
-    }
+    return _match_response(match)
 
 
 @router.post("/batch-match")
-def batch_match(req: dict, db: Session = Depends(get_db)):
+def batch_match(req: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     job_ids = req.get("job_ids", [])
     from app.services.job_matching_service import JobMatchingService
     match_svc = JobMatchingService()
     results = []
     for jid in job_ids:
         try:
-            match = match_svc.match_job(db, jid)
+            match = match_svc.match_job(db, user.id, jid)
             if match:
                 results.append({"job_id": jid, "score": match.score, "decision": match.recommendation})
         except Exception:
@@ -125,8 +105,23 @@ def batch_match(req: dict, db: Session = Depends(get_db)):
 
 
 @router.delete("/{job_id}")
-def delete_job(job_id: int, db: Session = Depends(get_db)):
-    ok = service.delete_job(db, job_id)
+def delete_job(job_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    ok = service.delete_job(db, job_id, user.id)
     if not ok:
         raise HTTPException(status_code=404, detail="Job not found")
     return {"ok": True}
+
+
+def _match_response(match) -> dict:
+    return {
+        "id": match.id, "job_id": match.job_id,
+        "score": match.score, "decision": match.recommendation,
+        "decision_reasons": match.decision_reasons,
+        "hard_filter_passed": match.hard_filter_passed,
+        "hard_filter_details": match.hard_filter_details,
+        "user_confirm_required": match.user_confirm_required,
+        "application_strategy": match.application_strategy,
+        "match_reasons": match.match_reasons,
+        "risks": match.risks,
+        "resume_strategy": match.resume_strategy,
+    }

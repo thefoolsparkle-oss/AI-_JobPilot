@@ -1,9 +1,12 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import time
 
 from app.core.config import settings
 from app.db.session import engine, Base
@@ -13,19 +16,30 @@ from app.api.jobs import router as jobs_router
 from app.api.applications import router as applications_router
 from app.api.settings import router as settings_router
 from app.api.tracker import router as tracker_router
+from app.api.auth import router as auth_router
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Starting JobPilot...")
     Base.metadata.create_all(bind=engine)
     from app.services.resume_service import TemplateService
     from app.db.session import SessionLocal
     db = SessionLocal()
     try:
         TemplateService().seed_templates(db)
+        logger.info("Database initialized and templates seeded.")
     finally:
         db.close()
     yield
+    logger.info("Shutting down JobPilot.")
 
 
 app = FastAPI(
@@ -35,12 +49,60 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000", "http://localhost:8001", "http://127.0.0.1:8000", "http://127.0.0.1:8001"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+RATE_LIMIT_WINDOW = settings.RATE_LIMIT_WINDOW
+RATE_LIMIT_MAX_REQUESTS = settings.RATE_LIMIT_MAX_REQUESTS
+rate_limit_store: dict[str, list[float]] = {}
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    if not settings.RATE_LIMIT_ENABLED or request.url.path.startswith("/_next"):
+        return await call_next(request)
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    window_start = now - RATE_LIMIT_WINDOW
+
+    timestamps = rate_limit_store.get(client_ip, [])
+    timestamps = [t for t in timestamps if t > window_start]
+
+    if len(timestamps) >= RATE_LIMIT_MAX_REQUESTS:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": f"Rate limit exceeded. Max {RATE_LIMIT_MAX_REQUESTS} requests per {RATE_LIMIT_WINDOW}s."},
+        )
+
+    timestamps.append(now)
+    rate_limit_store[client_ip] = timestamps
+
+    response = await call_next(request)
+    return response
+
+
+@app.middleware("http")
+async def log_request_middleware(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    duration = (time.time() - start) * 1000
+    if request.url.path.startswith("/api"):
+        logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({duration:.0f}ms)")
+    return response
+
+
 app.include_router(profiles_router)
 app.include_router(resumes_router)
 app.include_router(jobs_router)
 app.include_router(applications_router)
 app.include_router(settings_router)
 app.include_router(tracker_router)
+app.include_router(auth_router)
 
 
 @app.get("/api/health")

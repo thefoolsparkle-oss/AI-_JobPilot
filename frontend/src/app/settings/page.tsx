@@ -1,56 +1,46 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { api, SettingsInfo } from "@/lib/api";
+import { LoadingSpinner } from "@/components/UIComponents";
 
-const API_BASE = "/api";
-
-interface Settings {
-  has_key: boolean;
-  masked_key: string;
-  models: {
-    fast_model: string;
-    reasoning_model: string;
-    base_url: string;
-  };
-}
+const PRESETS = [
+  { label: "DeepSeek", base_url: "https://api.deepseek.com", fast: "deepseek-chat", reasoning: "deepseek-reasoner" },
+  { label: "OpenAI", base_url: "https://api.openai.com/v1", fast: "gpt-4o", reasoning: "gpt-4o" },
+  { label: "Kimi (月之暗面)", base_url: "https://api.moonshot.cn/v1", fast: "moonshot-v1-8k", reasoning: "moonshot-v1-128k" },
+  { label: "Qwen (通义千问)", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", fast: "qwen-plus", reasoning: "qwen-max" },
+];
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const [settings, setSettings] = useState<SettingsInfo | null>(null);
   const [keyInput, setKeyInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [modelForm, setModelForm] = useState({ base_url: "", fast_model: "", reasoning_model: "" });
 
-  const loadSettings = () => {
-    fetch(`${API_BASE}/settings`)
-      .then((r) => r.json())
-      .then((d) => {
-        setSettings(d);
-        setModelForm({ base_url: d.models.base_url, fast_model: d.models.fast_model, reasoning_model: d.models.reasoning_model });
-      })
-      .catch(console.error);
+  const loadSettings = async () => {
+    try {
+      const d = await api.settings.get();
+      setSettings(d);
+      setModelForm({ base_url: d.models.base_url, fast_model: d.models.fast_model, reasoning_model: d.models.reasoning_model });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
+  useEffect(() => { loadSettings(); }, []);
 
   const handleSave = async () => {
     if (!keyInput.trim()) return;
     setSaving(true);
     setMessage("");
     try {
-      const res = await fetch(`${API_BASE}/settings/key`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ api_key: keyInput }),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      await api.settings.setKey(keyInput);
       setMessage("API Key 已保存");
       setKeyInput("");
       loadSettings();
-    } catch (e: any) {
-      setMessage(`保存失败: ${e.message}`);
+    } catch (e: unknown) {
+      setMessage(`保存失败: ${(e as Error).message}`);
     } finally {
       setSaving(false);
     }
@@ -60,33 +50,21 @@ export default function SettingsPage() {
     setSaving(true);
     setMessage("");
     try {
-      const res = await fetch(`${API_BASE}/settings/models`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(modelForm),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      await api.settings.setModel(modelForm);
       setMessage("模型配置已保存，重启后生效");
       loadSettings();
-    } catch (e: any) {
-      setMessage(`保存失败: ${e.message}`);
+    } catch (e: unknown) {
+      setMessage(`保存失败: ${(e as Error).message}`);
     } finally {
       setSaving(false);
     }
   };
 
-  const PRESETS = [
-    { label: "DeepSeek", base_url: "https://api.deepseek.com", fast: "deepseek-chat", reasoning: "deepseek-reasoner" },
-    { label: "OpenAI", base_url: "https://api.openai.com/v1", fast: "gpt-4o", reasoning: "gpt-4o" },
-    { label: "Kimi (月之暗面)", base_url: "https://api.moonshot.cn/v1", fast: "moonshot-v1-8k", reasoning: "moonshot-v1-128k" },
-    { label: "Qwen (通义千问)", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", fast: "qwen-plus", reasoning: "qwen-max" },
-  ];
-
   const applyPreset = (p: typeof PRESETS[0]) => {
     setModelForm({ base_url: p.base_url, fast_model: p.fast, reasoning_model: p.reasoning });
   };
 
-  if (!settings) return <div className="max-w-2xl mx-auto px-6 py-12 text-zinc-500">加载中...</div>;
+  if (!settings) return <LoadingSpinner />;
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">
@@ -112,7 +90,6 @@ export default function SettingsPage() {
 
       <div className="bg-white rounded-xl border border-zinc-200 p-6 mb-6">
         <h2 className="font-semibold text-zinc-700 mb-4">模型配置</h2>
-
         <p className="text-sm text-zinc-500 mb-3">快速预设</p>
         <div className="flex flex-wrap gap-2 mb-4">
           {PRESETS.map((p) => (
@@ -122,7 +99,6 @@ export default function SettingsPage() {
             </button>
           ))}
         </div>
-
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-zinc-500">接口地址</label>

@@ -11,19 +11,32 @@ class DocumentExportService:
         full_template_path = self._resolve_template(template_path)
         doc = Document(full_template_path)
 
-        for paragraph in doc.paragraphs:
-            full_text = paragraph.text
-            replaced = False
+        def replace_placeholders(text: str) -> str:
             for key, value in resume_data.items():
                 placeholder = "{{" + key + "}}"
-                if placeholder in full_text:
+                if placeholder in text:
                     value_str = str(value) if not isinstance(value, (list, dict)) else ""
-                    full_text = full_text.replace(placeholder, value_str)
-                    replaced = True
-            if replaced and paragraph.runs:
+                    text = text.replace(placeholder, value_str)
+            return text
+
+        for paragraph in doc.paragraphs:
+            full_text = paragraph.text
+            replaced = replace_placeholders(full_text)
+            if replaced != full_text and paragraph.runs:
                 for run in paragraph.runs:
                     run.text = ""
-                paragraph.runs[0].text = full_text
+                paragraph.runs[0].text = replaced
+
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        full_text = paragraph.text
+                        replaced = replace_placeholders(full_text)
+                        if replaced != full_text and paragraph.runs:
+                            for run in paragraph.runs:
+                                run.text = ""
+                            paragraph.runs[0].text = replaced
 
         output_dir = os.path.join(BASE_DIR, "output")
         os.makedirs(output_dir, exist_ok=True)

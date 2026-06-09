@@ -5,7 +5,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.db.session import get_db
-from app.db.models import ResumeVersion
+from app.db.models import ResumeVersion, User
+from app.auth import get_current_user
 from app.services.resume_service import TemplateService
 from app.services.application_service import ResumeGenerationService
 from app.services.document_export_service import DocumentExportService
@@ -22,7 +23,7 @@ class GenerateResumeRequest(BaseModel):
 
 
 @router.get("/templates")
-def list_templates(db: Session = Depends(get_db)):
+def list_templates(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     templates = template_service.list_templates(db)
     return [
         {
@@ -37,8 +38,8 @@ def list_templates(db: Session = Depends(get_db)):
 
 
 @router.post("/resumes/generate")
-def generate_resume(req: GenerateResumeRequest, db: Session = Depends(get_db)):
-    version = generation_service.generate_resume(db, req.job_id, req.template_id)
+def generate_resume(req: GenerateResumeRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    version = generation_service.generate_resume(db, user.id, req.job_id, req.template_id)
     if not version:
         raise HTTPException(status_code=404, detail="Job or template not found")
     return {
@@ -53,9 +54,11 @@ def generate_resume(req: GenerateResumeRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/resumes")
-def list_resumes(db: Session = Depends(get_db)):
+def list_resumes(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from sqlalchemy import select
-    versions = list(db.execute(select(ResumeVersion).order_by(ResumeVersion.created_at.desc())).scalars().all())
+    versions = list(db.execute(
+        select(ResumeVersion).where(ResumeVersion.user_id == user.id).order_by(ResumeVersion.created_at.desc())
+    ).scalars().all())
     return [
         {
             "id": v.id,
@@ -70,8 +73,11 @@ def list_resumes(db: Session = Depends(get_db)):
 
 
 @router.post("/resumes/{resume_id}/export-pdf")
-async def export_pdf(resume_id: int, db: Session = Depends(get_db)):
-    resume = db.get(ResumeVersion, resume_id)
+async def export_pdf(resume_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from sqlalchemy import select
+    resume = db.execute(
+        select(ResumeVersion).where(ResumeVersion.id == resume_id, ResumeVersion.user_id == user.id)
+    ).scalar_one_or_none()
     if not resume or not resume.data:
         raise HTTPException(status_code=404, detail="Resume not found or no data")
 
@@ -85,16 +91,19 @@ async def export_pdf(resume_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/resumes/{resume_id}/download-pdf")
-def download_pdf(resume_id: int, db: Session = Depends(get_db)):
-    resume = db.get(ResumeVersion, resume_id)
+def download_pdf(resume_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from sqlalchemy import select
+    resume = db.execute(
+        select(ResumeVersion).where(ResumeVersion.id == resume_id, ResumeVersion.user_id == user.id)
+    ).scalar_one_or_none()
     if not resume or not resume.pdf_path or not os.path.exists(resume.pdf_path):
         raise HTTPException(status_code=404, detail="PDF not found. Export PDF first.")
     return FileResponse(resume.pdf_path, filename=f"{resume.name}.pdf", media_type="application/pdf")
 
 
 @router.post("/resumes/{resume_id}/review")
-def review_resume(resume_id: int, job_id: int, db: Session = Depends(get_db)):
-    result = generation_service.review_resume(db, resume_id, job_id)
+def review_resume(resume_id: int, job_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    result = generation_service.review_resume(db, user.id, resume_id, job_id)
     if not result:
         raise HTTPException(status_code=404, detail="Resume or job not found")
     return result

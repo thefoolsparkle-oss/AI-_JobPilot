@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth";
 
 const STEPS = [
   { step: "01", title: "录入履历", desc: "结构化保存教育、实习、项目经历，标记可写和不能写的内容。", href: "/profile" },
@@ -14,6 +15,7 @@ const STEPS = [
 
 export default function Home() {
   const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
     fetch("/api/settings")
@@ -34,7 +36,20 @@ export default function Home() {
         </div>
       </section>
 
-      {hasKey === false && (
+      {!authLoading && !user && (
+        <div className="bg-amber-50 border-b border-amber-200">
+          <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between">
+            <span className="text-sm text-amber-800">
+              请先登录或注册账号以使用全部功能。
+            </span>
+            <Link href="/login" className="text-sm text-blue-600 hover:underline font-medium">
+              登录 →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {user && hasKey === false && (
         <div className="bg-amber-50 border-b border-amber-200">
           <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between">
             <span className="text-sm text-amber-800">

@@ -1,6 +1,6 @@
 import json
 import logging
-from app.llm import DeepSeekProvider
+from app.utils.agent_base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +46,8 @@ FALLBACK_MATCH = {
 }
 
 
-class JobMatcherAgent:
-    def __init__(self):
-        self.llm = DeepSeekProvider()
+class JobMatcherAgent(BaseAgent):
+    agent_name = "job_matcher"
 
     def match(self, profile: dict, job_data: dict) -> dict:
         prompt = f"""Candidate Profile:
@@ -58,25 +57,8 @@ Job Description:
 {json.dumps(job_data, ensure_ascii=False, indent=2)}
 
 Evaluate the match and provide your analysis in the required JSON format."""
-        try:
-            response = self.llm.chat_with_reasoning(
-                messages=[
-                    {"role": "system", "content": JOB_MATCH_SYSTEM},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.1,
-                agent_name="job_matcher",
-            )
-            # DeepSeek reasoner may wrap JSON in markdown code blocks
-            if "```json" in response:
-                start = response.index("```json") + 7
-                end = response.index("```", start)
-                response = response[start:end].strip()
-            elif "```" in response:
-                start = response.index("```") + 3
-                end = response.index("```", start)
-                response = response[start:end].strip()
-            return json.loads(response)
-        except (json.JSONDecodeError, Exception) as e:
-            logger.warning(f"Job match failed: {e}")
-            return FALLBACK_MATCH
+        return self._call_llm_with_reasoning(
+            system_prompt=JOB_MATCH_SYSTEM,
+            user_prompt=prompt,
+            fallback=FALLBACK_MATCH,
+        )

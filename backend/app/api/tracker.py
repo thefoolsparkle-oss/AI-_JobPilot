@@ -1,4 +1,3 @@
-from typing import Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -6,7 +5,8 @@ from sqlalchemy import select, desc
 from pydantic import BaseModel
 
 from app.db.session import get_db
-from app.db.models import ApplicationRecord, Job
+from app.db.models import ApplicationRecord, Job, User
+from app.auth import get_current_user
 
 
 class UpdateStatusRequest(BaseModel):
@@ -31,13 +31,13 @@ STATUS_LABELS = {
     "archived": "已归档",
 }
 
-STATUS_ORDER = ["discovered", "saved", "applied", "interviewing", "offered", "rejected", "archived"]
-
 
 @router.get("/records")
-def list_records(db: Session = Depends(get_db)):
+def list_records(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     records = list(db.execute(
-        select(ApplicationRecord).order_by(desc(ApplicationRecord.updated_at))
+        select(ApplicationRecord)
+        .where(ApplicationRecord.user_id == user.id)
+        .order_by(desc(ApplicationRecord.updated_at))
     ).scalars().all())
 
     result = []
@@ -65,17 +65,19 @@ def list_records(db: Session = Depends(get_db)):
 
 
 @router.post("/records/{job_id}")
-def upsert_record(job_id: int, req: UpdateStatusRequest, db: Session = Depends(get_db)):
-    job = db.get(Job, job_id)
+def upsert_record(job_id: int, req: UpdateStatusRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    job = db.execute(
+        select(Job).where(Job.id == job_id, Job.user_id == user.id)
+    ).scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
     record = db.execute(
-        select(ApplicationRecord).where(ApplicationRecord.job_id == job_id)
+        select(ApplicationRecord).where(ApplicationRecord.job_id == job_id, ApplicationRecord.user_id == user.id)
     ).scalar_one_or_none()
 
     if not record:
-        record = ApplicationRecord(job_id=job_id)
+        record = ApplicationRecord(job_id=job_id, user_id=user.id)
         db.add(record)
 
     record.status = req.status
@@ -105,9 +107,9 @@ def upsert_record(job_id: int, req: UpdateStatusRequest, db: Session = Depends(g
 
 
 @router.delete("/records/{job_id}")
-def delete_record(job_id: int, db: Session = Depends(get_db)):
+def delete_record(job_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     record = db.execute(
-        select(ApplicationRecord).where(ApplicationRecord.job_id == job_id)
+        select(ApplicationRecord).where(ApplicationRecord.job_id == job_id, ApplicationRecord.user_id == user.id)
     ).scalar_one_or_none()
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
@@ -117,14 +119,14 @@ def delete_record(job_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/analytics")
-def get_analytics(db: Session = Depends(get_db)):
+def get_analytics(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     records = list(db.execute(
-        select(ApplicationRecord)
+        select(ApplicationRecord).where(ApplicationRecord.user_id == user.id)
     ).scalars().all())
 
     total = len(records)
     if total == 0:
-        return {"total": 0, "status_counts": {}, "response_rate": 0, "recommendations": []}
+        return {"total": 0, "status_counts": {}, "response_rate": 0, "interview_rate": 0, "offered": 0, "rejected": 0, "applied": 0, "interviewing": 0, "recommendations": [], "rejection_reasons": []}
 
     status_counts = {}
     for r in records:
@@ -136,18 +138,16 @@ def get_analytics(db: Session = Depends(get_db)):
     response_rate = round((applied / total) * 100, 1) if total > 0 else 0
     interview_rate = round((interviewing / max(applied, 1)) * 100, 1)
 
-    # Collect rejection reasons
     rejection_reasons = []
     for r in records:
         if r.rejection_reason:
             rejection_reasons.append({"job": r.job.title if r.job else "", "reason": r.rejection_reason})
 
-    # Generate strategy recommendations using LLM if available, fallback to rules
     recommendations = []
     try:
         from app.agents.application_writer import ApplicationWriterAgent
         agent = ApplicationWriterAgent()
-        stats_text = f"""求职数据: 总投递{total}个，已投递{applied}个，面试{interviewing}个，Offer{status_counts.get('offered', 0)}个，被拒{rejected}个。回复率{response_rate}%，面试率{interview_rate}%。"""
+        stats_text = f"求职数据: 总投递{total}个，已投递{applied}个，面试{interviewing}个，Offer{status_counts.get('offered', 0)}个，被拒{rejected}个。回复率{response_rate}%，面试率{interview_rate}%。"
         if rejection_reasons:
             stats_text += f" 拒绝原因: {[r['reason'] for r in rejection_reasons]}"
         result = agent.llm.chat(

@@ -8,12 +8,14 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.db.session import get_db
-from app.db.models import ApplicationPackage, Job
+from app.db.models import ApplicationPackage, Job, ResumeVersion, User
+from app.auth import get_current_user
 from app.services.application_service import ApplicationService, SearchService
 from app.services.web_fetcher import WebFetcher
 from app.services.search_executor import SearchExecutor
 from app.agents.form_assistant import FormAssistantAgent
 from app.services.profile_service import ProfileService
+from app.utils.profile_utils import ProfileDataBuilder
 
 
 class GeneratePackageRequest(BaseModel):
@@ -46,10 +48,28 @@ search_service = SearchService()
 
 
 @router.post("/applications/generate")
-def generate_package(req: GeneratePackageRequest, db: Session = Depends(get_db)):
-    pkg = application_service.generate_package(db, req.job_id)
+def generate_package(req: GeneratePackageRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    pkg = application_service.generate_package(db, user.id, req.job_id)
     if not pkg:
         raise HTTPException(status_code=404, detail="Job not found")
+    return _pkg_response(pkg)
+
+
+@router.get("/applications/{job_id}")
+def get_package(job_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from sqlalchemy import select
+    pkg = db.execute(
+        select(ApplicationPackage)
+        .join(Job, ApplicationPackage.job_id == Job.id)
+        .where(ApplicationPackage.job_id == job_id, Job.user_id == user.id)
+        .order_by(ApplicationPackage.created_at.desc())
+    ).scalars().first()
+    if not pkg:
+        raise HTTPException(status_code=404, detail="No application package found")
+    return _pkg_response(pkg)
+
+
+def _pkg_response(pkg) -> dict:
     return {
         "id": pkg.id,
         "job_id": pkg.job_id,
@@ -63,48 +83,27 @@ def generate_package(req: GeneratePackageRequest, db: Session = Depends(get_db))
     }
 
 
-@router.get("/applications/{job_id}")
-def get_package(job_id: int, db: Session = Depends(get_db)):
-    from sqlalchemy import select
-    pkg = db.execute(
-        select(ApplicationPackage).where(ApplicationPackage.job_id == job_id).order_by(ApplicationPackage.created_at.desc())
-    ).scalars().first()
-    if not pkg:
-        raise HTTPException(status_code=404, detail="No application package found")
-    return {
-        "id": pkg.id,
-        "job_id": pkg.job_id,
-        "self_intro": pkg.self_intro,
-        "application_reason": pkg.application_reason,
-        "hr_message": pkg.hr_message,
-        "cover_letter": pkg.cover_letter,
-        "risk_notes": pkg.risk_notes,
-        "interview_questions": pkg.interview_questions,
-    }
-
-
 @router.post("/discover/search-strategy")
-def generate_search_strategy(db: Session = Depends(get_db)):
-    return search_service.generate_search_strategy(db)
+def generate_search_strategy(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return search_service.generate_search_strategy(db, user.id)
 
 
 @router.post("/discover/fetch")
-async def fetch_url(req: FetchUrlRequest):
+async def fetch_url(req: FetchUrlRequest, user: User = Depends(get_current_user)):
     fetcher = WebFetcher()
-    result = await fetcher.fetch_page(req.url)
-    return result
+    return await fetcher.fetch_page(req.url)
 
 
 @router.post("/discover/search")
-async def execute_search(req: SearchQueryRequest):
+async def execute_search(req: SearchQueryRequest, user: User = Depends(get_current_user)):
     executor = SearchExecutor()
     results = await executor.search_jobs(req.query, req.max_results)
     return {"query": req.query, "results": results}
 
 
 @router.post("/discover/search-all")
-async def execute_full_search(db: Session = Depends(get_db)):
-    strategy = search_service.generate_search_strategy(db)
+async def execute_full_search(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    strategy = search_service.generate_search_strategy(db, user.id)
     queries = strategy.get("queries", [])
     if not queries:
         return {"results": [], "queries": []}
@@ -115,8 +114,7 @@ async def execute_full_search(db: Session = Depends(get_db)):
 
 
 @router.post("/discover/save-and-parse")
-async def save_search_results(req: SearchQueryRequest, db: Session = Depends(get_db)):
-    """Search → save as Jobs → auto-parse JDs → return parsed jobs."""
+async def save_search_results(req: SearchQueryRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     executor = SearchExecutor()
     search_results = await executor.search_jobs(req.query, req.max_results)
 
@@ -130,12 +128,13 @@ async def save_search_results(req: SearchQueryRequest, db: Session = Depends(get
         if not r.get("url") or not r.get("title"):
             continue
         from sqlalchemy import select
-        existing = db.execute(select(Job).where(Job.url == r["url"])).scalar_one_or_none()
+        existing = db.execute(
+            select(Job).where(Job.url == r["url"], Job.user_id == user.id)
+        ).scalar_one_or_none()
         if existing:
             saved_jobs.append({"job_id": existing.id, "title": existing.title, "status": "skipped_dup"})
             continue
 
-        # Try to fetch full page content, fall back to snippet
         jd_text = ""
         try:
             from app.services.web_fetcher import WebFetcher
@@ -149,12 +148,11 @@ async def save_search_results(req: SearchQueryRequest, db: Session = Depends(get
         if not jd_text:
             jd_text = f"{r.get('title', '')}\n{r.get('snippet', '')}"
 
-        job = job_svc.parse_and_save(db, jd_text, r["url"], "search")
+        job = job_svc.parse_and_save(db, user.id, jd_text, r["url"], "search")
         saved_jobs.append({"job_id": job.id, "title": job.title, "status": "saved"})
 
-        # Auto-match
         try:
-            match_svc.match_job(db, job.id)
+            match_svc.match_job(db, user.id, job.id)
         except Exception:
             pass
 
@@ -162,46 +160,28 @@ async def save_search_results(req: SearchQueryRequest, db: Session = Depends(get
 
 
 @router.post("/assistant/form")
-def form_assist(req: FormAssistRequest, db: Session = Depends(get_db)):
+def form_assist(req: FormAssistRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     profile_svc = ProfileService()
-    profile = profile_svc.get_full_profile(db)
-
-    profile_data = {
-        "name": profile.name,
-        "education": [{"school": e.school, "degree": e.degree, "major": e.major} for e in profile.education],
-        "experiences": [
-            {"type": e.experience_type, "name": e.name, "org": e.organization, "title": e.title,
-             "tech_stack": e.tech_stack,
-             "allowed_claims": e.allowed_claims, "forbidden_claims": e.forbidden_claims,
-             "facts": [
-                 {"id": f.id, "content": f.content, "claim_level": f.claim_level,
-                  "risk_level": f.risk_level, "interview_explanation": f.interview_explanation}
-                 for f in e.facts
-             ]}
-            for e in profile.experiences
-        ],
-        "skills": [{"name": s.name, "level": s.level, "category": s.category} for s in profile.skills],
-        "preferences": [
-            {"target_roles": p.target_roles, "preferred_locations": p.preferred_locations,
-             "remote_preference": p.remote_preference, "min_duration_weeks": p.min_duration_weeks}
-            for p in profile.preferences
-        ],
-    }
+    profile = profile_svc.get_full_profile(db, user.id)
+    profile_data = ProfileDataBuilder.build_for_form(profile)
 
     job_data = None
     if req.job_id:
-        job = db.get(Job, req.job_id)
+        from sqlalchemy import select
+        job = db.execute(
+            select(Job).where(Job.id == req.job_id, Job.user_id == user.id)
+        ).scalar_one_or_none()
         if job:
             job_data = {"title": job.title, "company": job.company, "parsed_jd": job.parsed_jd}
 
     resume_context = None
     if req.resume_id:
-        from app.db.models import ResumeVersion
-        rv = db.get(ResumeVersion, req.resume_id)
+        rv = db.execute(
+            select(ResumeVersion).where(ResumeVersion.id == req.resume_id, ResumeVersion.user_id == user.id)
+        ).scalar_one_or_none()
         if rv and rv.data:
             resume_context = {"name": rv.name, "data_summary": str(rv.data)[:500]}
 
-    # If image_path provided, run OCR first
     form_text = req.form_text
     if req.image_path and not form_text:
         from app.services.ocr_service import OCRService
@@ -213,7 +193,7 @@ def form_assist(req: FormAssistRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/assistant/ocr")
-def ocr_extract(req: OCRRequest):
+def ocr_extract(req: OCRRequest, user: User = Depends(get_current_user)):
     from app.services.ocr_service import OCRService
     ocr = OCRService()
     text = ocr.extract_text(req.image_path)
@@ -221,7 +201,7 @@ def ocr_extract(req: OCRRequest):
 
 
 @router.post("/assistant/ocr-upload")
-async def ocr_upload(file: UploadFile = File(...)):
+async def ocr_upload(file: UploadFile = File(...), user: User = Depends(get_current_user)):
     allowed_suffixes = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
     original_name = Path(file.filename or "upload").name
     suffix = Path(original_name).suffix.lower()

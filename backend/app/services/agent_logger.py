@@ -35,7 +35,7 @@ class AgentLogger:
         temperature: Optional[float] = None,
         duration_ms: Optional[int] = None,
     ):
-        db = SessionLocal()
+        db: Session = SessionLocal()
         try:
             if self._run_id is None:
                 run = AgentRun(
@@ -65,7 +65,7 @@ class AgentLogger:
             db.close()
 
     def _flush(self):
-        db = SessionLocal()
+        db: Session = SessionLocal()
         try:
             if self._run_id is not None:
                 run = db.get(AgentRun, self._run_id)

@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_RETRIES: int = 2
 
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_WINDOW: int = 60
+    RATE_LIMIT_MAX_REQUESTS: int = 30
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

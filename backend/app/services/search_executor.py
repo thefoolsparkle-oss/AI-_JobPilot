@@ -16,9 +16,14 @@ class SearchExecutor:
                 return [{"error": "ddgs/duckduckgo_search not installed", "title": "", "url": "", "snippet": ""}]
 
         jobs = []
+        platforms = " OR ".join([
+            "site:zhipin.com", "site:nowcoder.com", "site:shixiseng.com",
+            "site:lagou.com", "site:51job.com", "site:liepin.com",
+            "site:linkedin.com", "site:indeed.com",
+        ])
         try:
             with DDGS() as ddgs:
-                results = list(ddgs.text(f"{query} site:zhipin.com OR site:nowcoder.com OR site:shixiseng.com", max_results=max_results))
+                results = list(ddgs.text(f"{query} {platforms}", max_results=max_results))
                 for r in results:
                     jobs.append({
                         "title": r.get("title", ""),

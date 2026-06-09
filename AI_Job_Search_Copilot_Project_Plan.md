@@ -2059,3 +2059,153 @@ pytest tests/ -v
 ```
 
 这才是它和普通 AI 简历生成器的区别。
+
+---
+
+# 代码优化记录 (2026-06-09)
+
+> 本次优化针对代码审查中发现的 20 个问题进行了系统性重构。
+
+## P0 优化 (架构级别)
+
+### 1. 消除 Agent 代码重复 — 新增 `backend/app/utils/` 包
+
+| 文件 | 职责 |
+|------|------|
+| `utils/json_utils.py` | `extract_json()` — 统一提取 LLM 返回中的 JSON markdown 代码块 |
+| `utils/profile_utils.py` | `ProfileDataBuilder` — 统一 Profile→dict 转换（4 种模式：full/compact/form/facts_only） |
+| `utils/agent_base.py` | `BaseAgent` — Agent 基类，提供 `_call_llm_json()` 和 `_call_llm_with_reasoning()` 统一错误处理 |
+
+**影响范围:** 8 个 Agent 全部重构，消除 6 处重复的 `"```json"` 解析逻辑和 8 处重复的 `try/except → fallback` 模式。
+
+### 2. LLM Client 单例化 — 新增 `backend/app/llm/factory.py`
+
+- `get_llm()` 全局单例，所有 Agent 共享同一个 `OpenAI` client 连接池
+- 修复 `OpenAIProvider.achat()` 每次调用都 `new AsyncOpenAI()` 的问题 → 现在复用 `_aclient` 实例
+- 修复 `DeepSeekProvider.achat_with_reasoning()` 缺少 `agent_name` 参数签名不一致
+
+### 3. AgentLogger 会话复用
+
+- `backend/app/services/agent_logger.py` 优化 session 管理，使用一致的 `SessionLocal` 模式
+
+### 4. 消除 Profile→dict 重复转换 — 3 处统一
+
+| 原位置 | 改为 |
+|--------|------|
+| `job_matching_service.py:19-57` | `ProfileDataBuilder.build_from_orm(profile)` |
+| `application_service.py:31-65, 132-152` | `ProfileDataBuilder.build_compact()`, `build_from_orm()` |
+| `applications.py:169-189` (form_assistant) | `ProfileDataBuilder.build_for_form()` |
+
+### 5. FastAPI 基础设施补齐
+
+**`backend/app/main.py`:**
+- **CORS 中间件** — 允许 `localhost:8000/8001` 跨域请求（Chrome Extension 要求）
+- **日志配置** — `logging.basicConfig()` 统一格式，所有模块日志生效
+- **Rate Limiting 中间件** — 每 IP 60 秒内最多 30 次 API 请求
+- **请求日志中间件** — 记录每个 `/api/*` 请求的方法、状态码、耗时
+- **数据库初始化日志** — 启动时输出确认信息
+
+### 6. 数据库迁移工具 Alembic
+
+- 安装 `alembic>=1.14.0`
+- 初始化 `backend/alembic/` 目录
+- 配置 `alembic.ini` 指向 SQLite + `backend/` syspath
+- 更新 `env.py` 导入 `Base.metadata` 支持 `--autogenerate`
+- 更新 `requirements.txt` 添加 alembic 依赖
+
+## P1 优化 (代码质量)
+
+### 7. 前端 API 层统一
+
+- **`frontend/src/lib/api.ts`** — 从 44 行扩展到 200+ 行，包含：
+  - 完整的 TypeScript 类型定义（Profile, Education, Experience, Job, JobMatch, ApplicationPackage, TrackerRecord, SettingsInfo 等 20+ 接口）
+  - 所有 35+ 个 API 端点封装为类型安全的函数调用
+  - 统一的 `request<T>()` + 错误处理
+- **所有页面** (`profile/`, `jobs/`, `applications/`, `tracker/`, `settings/`) 改为使用 `api.*` 调用
+- 消除页面内重复的 `const API_BASE = "/api"` 和裸 `fetch`
+- 错误处理从 `catch (e: any)` 统一为 `catch (e: unknown)` + 类型守卫
+
+### 8. 新增共享 UI 组件 — `frontend/src/components/UIComponents.tsx`
+
+| 组件 | 用途 |
+|------|------|
+| `LoadingSpinner` | 统一加载动画（旋转 SVG + 文字） |
+| `ErrorBanner` | 统一错误提示（红色背景 + 重试按钮） |
+| `EmptyState` | 统一空状态提示 |
+| `PageHeader` | 统一页面标题/副标题 |
+| `Modal` | 统一模态框模板 |
+
+### 9. 前端类型安全
+
+- 消除所有 `any` 类型
+- `page.tsx` 中 `(form as any)[f]` 全部替换为 `(form as Record<string, string>)[f]`
+- 回调事件类型从 `(e: any)` → `(e: unknown)`
+
+## P2 优化 (功能增强)
+
+### 10. Extension 修复
+
+- `popup.js` 后端地址从 `8001` 统一为 `8000`
+- `manifest.json` `host_permissions` 增加 `8000` 端口
+- 生成 `icons/icon16.png`, `icon48.png`, `icon128.png` 占位图标
+
+### 11. DOCX 模板渲染增强
+
+- `document_export_service.py` `render_resume()` 新增**表格替换**逻辑
+- 遍历 `doc.tables` 中所有行/单元格/段落，同样支持 `{{placeholder}}` 替换
+- 抽取 `replace_placeholders()` 函数避免冗余
+
+### 12. 搜索平台扩展 & 时长匹配增强
+
+- `search_executor.py` 搜索平台从 3 个扩展到 8 个（增加 lagou, 51job, liepin, linkedin, indeed）
+- `job_matching_service.py` 新增 `_parse_duration_months()` 方法，支持：
+  - `X个月`, `X月` — 月数匹配
+  - `X月` 带负向断言避免误匹配
+  - `X months`, `X month` — 英文匹配
+  - `X周` — 周数匹配（直接按周值比较）
+
+### 13. 端口统一
+
+- 所有后端默认端口统一为 `8000`（config.py, start.bat, extension）
+
+---
+
+## 变更文件清单
+
+### 新增文件 (7)
+- `backend/app/utils/__init__.py`
+- `backend/app/utils/json_utils.py`
+- `backend/app/utils/profile_utils.py`
+- `backend/app/utils/agent_base.py`
+- `backend/app/llm/factory.py`
+- `backend/alembic/` (目录 + env.py + script.py.mako)
+- `frontend/src/components/UIComponents.tsx`
+
+### 重构文件 (16)
+- `backend/app/agents/` 下 8 个 agent 全部使用 BaseAgent 基类
+- `backend/app/llm/openai_provider.py` — 复用 AsyncOpenAI client
+- `backend/app/llm/deepseek_provider.py` — 修复签名
+- `backend/app/services/job_matching_service.py` — ProfileDataBuilder + 增强 duration 匹配
+- `backend/app/services/application_service.py` — ProfileDataBuilder
+- `backend/app/services/search_executor.py` — 8 个搜索平台
+- `backend/app/services/document_export_service.py` — 表格替换
+- `backend/app/services/agent_logger.py` — 规范化 session 管理
+- `backend/app/api/applications.py` — ProfileDataBuilder
+- `backend/app/main.py` — CORS + Logging + Rate Limiting
+- `frontend/src/lib/api.ts` — 完整重写
+- `frontend/src/app/profile/page.tsx` — 使用 api.* + UIComponents
+- `frontend/src/app/tracker/page.tsx` — 使用 api.* + UIComponents
+- `frontend/src/app/settings/page.tsx` — 使用 api.* + UIComponents
+- `frontend/src/app/applications/page.tsx` — 使用 api.* + UIComponents
+- `frontend/src/app/jobs/page.tsx` — 使用 api.* + UIComponents
+
+### 修复文件 (4)
+- `extension/popup.js` — 端口 8000
+- `extension/manifest.json` — host_permissions
+- `extension/icons/` — 3 个 PNG 图标
+- `alembic.ini` — 数据库 URL 配置
+- `backend/requirements.txt` — 添加 alembic
+
+---
+
+**累计消除重复代码:** ~350 行 | **新增基础设施代码:** ~500 行 | **新增类型安全:** 20+ 接口

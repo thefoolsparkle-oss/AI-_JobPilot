@@ -1,6 +1,6 @@
 import json
 import logging
-from app.llm import DeepSeekProvider
+from app.utils.agent_base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -38,47 +38,31 @@ FALLBACK_FORM = {
 }
 
 
-class FormAssistantAgent:
-    def __init__(self):
-        self.llm = DeepSeekProvider()
+class FormAssistantAgent(BaseAgent):
+    agent_name = "form_assistant"
 
     def assist(self, form_text: str, profile_data: dict, job_data: dict = None, resume_context: dict = None) -> dict:
-        try:
-            context = f"""Form Question / Page Text:
+        context = f"""Form Question / Page Text:
 {form_text}
 
 Candidate Profile:
 {json.dumps(profile_data, ensure_ascii=False, indent=2)}"""
 
-            if job_data:
-                context += f"""
+        if job_data:
+            context += f"""
 
 Job Context:
 {json.dumps(job_data, ensure_ascii=False, indent=2)}"""
 
-            if resume_context:
-                context += f"""
+        if resume_context:
+            context += f"""
 
 Submitted Resume:
 {json.dumps(resume_context, ensure_ascii=False, indent=2)}"""
 
-            response = self.llm.chat(
-                messages=[
-                    {"role": "system", "content": FORM_ASSISTANT_SYSTEM},
-                    {"role": "user", "content": context},
-                ],
-                temperature=0.2,
-                agent_name="form_assistant",
-            )
-            if "```json" in response:
-                start = response.index("```json") + 7
-                end = response.index("```", start)
-                response = response[start:end].strip()
-            elif "```" in response:
-                start = response.index("```") + 3
-                end = response.index("```", start)
-                response = response[start:end].strip()
-            return json.loads(response)
-        except Exception as e:
-            logger.warning(f"Form assistant failed: {e}")
-            return dict(FALLBACK_FORM)
+        return self._call_llm_json(
+            system_prompt=FORM_ASSISTANT_SYSTEM,
+            user_prompt=context,
+            fallback=FALLBACK_FORM,
+            temperature=0.2,
+        )

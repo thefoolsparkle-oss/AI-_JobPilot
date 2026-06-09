@@ -1,68 +1,110 @@
 from typing import Optional
-from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy import select, desc
 
-from app.db.models import ResumeVersion, ResumeTemplate, Job, ApplicationPackage
+from app.db.models import User, Profile, Job, JobMatch, ResumeVersion, ResumeTemplate, ApplicationPackage
+from app.agents.job_matcher import JobMatcherAgent
+from app.agents.search_strategy import SearchStrategyAgent
 from app.agents.resume_customizer import ResumeCustomizerAgent
 from app.agents.resume_reviewer import ResumeReviewerAgent
 from app.agents.application_writer import ApplicationWriterAgent
-from app.agents.search_strategy import SearchStrategyAgent
 from app.services.profile_service import ProfileService
-from app.services.job_matching_service import JobMatchingService
 from app.services.document_export_service import DocumentExportService
+from app.utils.profile_utils import ProfileDataBuilder
+
+
+class JobMatchingService:
+    def match_job(self, db: Session, user_id: int, job_id: int) -> Optional[JobMatch]:
+        job = db.execute(
+            select(Job).where(Job.id == job_id, Job.user_id == user_id)
+        ).scalar_one_or_none()
+        if not job or not job.parsed_jd:
+            return None
+
+        profile_svc = ProfileService()
+        profile = profile_svc.get_full_profile(db, user_id)
+
+        profile_data = ProfileDataBuilder.build_from_orm(profile)
+
+        job_data = {
+            "title": job.title,
+            "company": job.company,
+            "location": job.location,
+            "parsed_jd": job.parsed_jd,
+        }
+
+        agent = JobMatcherAgent()
+        result = agent.match(profile_data, job_data)
+
+        if profile.preferences:
+            prefs = profile.preferences[0]
+            jd_filters = job.parsed_jd.get("hard_filters", []) if job.parsed_jd else []
+            for f in jd_filters:
+                if prefs.min_duration_weeks:
+                    matched = self._parse_duration_months(f)
+                    if matched and prefs.min_duration_weeks < matched:
+                        result["score"] = min(result.get("score", 50), 45)
+                        result["recommendation"] = "review"
+                        if "时长不匹配" not in str(result.get("risks", [])):
+                            result.setdefault("risks", []).append(f"硬性门槛不满足: {f}")
+
+        match = JobMatch(
+            job_id=job_id,
+            score=result.get("score", 0),
+            recommendation=result.get("decision", result.get("recommendation", "review")),
+            decision_reasons=result.get("decision_reasons", result.get("summary", "")),
+            hard_filter_passed=result.get("hard_filter_passed", True),
+            hard_filter_details=result.get("hard_filter_details", []),
+            user_confirm_required=result.get("user_confirm_required", []),
+            application_strategy=result.get("application_strategy", ""),
+            summary=result.get("decision_reasons", result.get("summary", "")),
+            match_reasons=result.get("match_reasons", []),
+            risks=result.get("risks", []),
+            resume_strategy=result.get("resume_strategy", []),
+        )
+        db.add(match)
+        db.commit()
+        db.refresh(match)
+        return match
+
+    def get_match(self, db: Session, job_id: int) -> Optional[JobMatch]:
+        return db.execute(
+            select(JobMatch).where(JobMatch.job_id == job_id).order_by(JobMatch.created_at.desc())
+        ).scalars().first()
+
+    @staticmethod
+    def _parse_duration_months(text: str) -> Optional[int]:
+        import re
+        patterns = [
+            r'(\d+)\s*个月',
+            r'(\d+)\s*月(?:[^0-9]|$)',
+            r'(\d+)\s*mo(?:nth)?s?',
+        ]
+        for pat in patterns:
+            m = re.search(pat, text, re.IGNORECASE)
+            if m:
+                return int(m.group(1))
+        match_weeks = re.search(r'(\d+)\s*周', text)
+        if match_weeks:
+            return int(match_weeks.group(1))
+        return None
 
 
 class ResumeGenerationService:
-    def generate_resume(
-        self, db: Session, job_id: int, template_id: int
-    ) -> Optional[ResumeVersion]:
-        job = db.get(Job, job_id)
+    def generate_resume(self, db: Session, user_id: int, job_id: int, template_id: int) -> Optional[ResumeVersion]:
+        job = db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id)).scalar_one_or_none()
         template = db.get(ResumeTemplate, template_id)
         if not job or not template or not job.parsed_jd:
             return None
 
         profile_svc = ProfileService()
-        profile = profile_svc.get_full_profile(db)
+        profile = profile_svc.get_full_profile(db, user_id)
 
         match_svc = JobMatchingService()
         match = match_svc.get_match(db, job_id)
         strategy = match.resume_strategy if match else []
 
-        profile_data = {
-            "name": profile.name,
-            "email": profile.email,
-            "phone": profile.phone,
-            "location": profile.location,
-            "github": profile.github,
-            "linkedin": profile.linkedin,
-            "education": [
-                {"school": e.school, "degree": e.degree, "major": e.major, "start": e.start_date, "end": e.end_date, "gpa": e.gpa}
-                for e in profile.education
-            ],
-            "experiences": [
-                {
-                    "type": e.experience_type, "name": e.name, "org": e.organization,
-                    "title": e.title, "start": e.start_date, "end": e.end_date,
-                    "tech_stack": e.tech_stack,
-                    "allowed_claims": e.allowed_claims,
-                    "forbidden_claims": e.forbidden_claims,
-                    "evidence": e.evidence,
-                    "transferable_skills": e.transferable_skills,
-                    "facts": [
-                        {
-                            "id": f.id,
-                            "content": f.content,
-                            "claim_level": f.claim_level,
-                            "risk_level": f.risk_level,
-                            "interview_explanation": f.interview_explanation,
-                        }
-                        for f in e.facts
-                    ],
-                }
-                for e in profile.experiences
-            ],
-            "skills": [{"name": s.name, "level": s.level, "category": s.category} for s in profile.skills],
-        }
+        profile_data = ProfileDataBuilder.build_compact(profile)
 
         job_data = {"title": job.title, "company": job.company, "location": job.location, "parsed_jd": job.parsed_jd}
 
@@ -75,6 +117,7 @@ class ResumeGenerationService:
         docx_path = export_svc.render_resume(resume_data, template.template_file)
 
         version = ResumeVersion(
+            user_id=user_id,
             template_id=template_id,
             job_id=job_id,
             name=name,
@@ -86,28 +129,24 @@ class ResumeGenerationService:
         db.refresh(version)
         return version
 
-    def review_resume(self, db: Session, resume_id: int, job_id: int) -> Optional[dict]:
-        resume = db.get(ResumeVersion, resume_id)
-        job = db.get(Job, job_id)
+    def review_resume(self, db: Session, user_id: int, resume_id: int, job_id: int) -> Optional[dict]:
+        resume = db.execute(
+            select(ResumeVersion).where(ResumeVersion.id == resume_id, ResumeVersion.user_id == user_id)
+        ).scalar_one_or_none()
+        job = db.execute(
+            select(Job).where(Job.id == job_id, Job.user_id == user_id)
+        ).scalar_one_or_none()
         if not resume or not job or not resume.data:
             return None
 
         profile_svc = ProfileService()
-        profile = profile_svc.get_full_profile(db)
+        profile = profile_svc.get_full_profile(db, user_id)
 
-        profile_data = {
-            "name": profile.name,
-            "experiences": [
-                {"facts": [f.content for f in e.facts], "allowed_claims": e.allowed_claims, "forbidden_claims": e.forbidden_claims}
-                for e in profile.experiences
-            ],
-        }
+        profile_data = ProfileDataBuilder.build_experience_facts_only(profile)
 
-        # Find previous version for comparison
-        from sqlalchemy import select, desc
         previous = db.execute(
             select(ResumeVersion)
-            .where(ResumeVersion.job_id == job_id, ResumeVersion.id < resume_id)
+            .where(ResumeVersion.job_id == job_id, ResumeVersion.id < resume_id, ResumeVersion.user_id == user_id)
             .order_by(desc(ResumeVersion.id))
         ).scalars().first()
 
@@ -121,35 +160,17 @@ class ResumeGenerationService:
 
 
 class ApplicationService:
-    def generate_package(self, db: Session, job_id: int) -> Optional[ApplicationPackage]:
-        job = db.get(Job, job_id)
+    def generate_package(self, db: Session, user_id: int, job_id: int) -> Optional[ApplicationPackage]:
+        job = db.execute(
+            select(Job).where(Job.id == job_id, Job.user_id == user_id)
+        ).scalar_one_or_none()
         if not job:
             return None
 
         profile_svc = ProfileService()
-        profile = profile_svc.get_full_profile(db)
+        profile = profile_svc.get_full_profile(db, user_id)
 
-        profile_data = {
-            "name": profile.name, "education": [
-                {"school": e.school, "degree": e.degree, "major": e.major} for e in profile.education
-            ],
-            "experiences": [
-                {"type": e.experience_type, "name": e.name, "org": e.organization, "title": e.title,
-                 "allowed_claims": e.allowed_claims, "forbidden_claims": e.forbidden_claims,
-                 "evidence": e.evidence, "transferable_skills": e.transferable_skills,
-                 "facts": [
-                     {"id": f.id, "content": f.content, "claim_level": f.claim_level,
-                      "risk_level": f.risk_level, "interview_explanation": f.interview_explanation}
-                     for f in e.facts
-                 ]}
-                for e in profile.experiences
-            ],
-            "skills": [s.name for s in profile.skills],
-            "preferences": [
-                {"target_roles": p.target_roles, "remote_preference": p.remote_preference}
-                for p in profile.preferences
-            ],
-        }
+        profile_data = ProfileDataBuilder.build_from_orm(profile)
 
         job_data = {"title": job.title, "company": job.company, "parsed_jd": job.parsed_jd}
 
@@ -181,9 +202,9 @@ class ApplicationService:
 
 
 class SearchService:
-    def generate_search_strategy(self, db: Session) -> dict:
+    def generate_search_strategy(self, db: Session, user_id: int) -> dict:
         profile_svc = ProfileService()
-        profile = profile_svc.get_full_profile(db)
+        profile = profile_svc.get_full_profile(db, user_id)
 
         preference_data = {"target_roles": [], "target_industries": [], "preferred_locations": []}
         if profile.preferences:

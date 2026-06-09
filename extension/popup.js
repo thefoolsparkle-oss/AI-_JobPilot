@@ -1,4 +1,4 @@
-const BACKEND = "http://127.0.0.1:8001/api";
+const BACKEND = "http://127.0.0.1:8000/api";
 
 function setStatus(type, msg) {
   const el = document.getElementById("status");

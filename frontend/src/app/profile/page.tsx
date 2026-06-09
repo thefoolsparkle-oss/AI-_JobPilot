@@ -1,80 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-
-const API_BASE = "/api";
-
-interface Profile {
-  id?: number;
-  name: string;
-  email: string;
-  phone: string;
-  location: string;
-  linkedin: string;
-  github: string;
-  portfolio: string;
-  education: Education[];
-  experiences: Experience[];
-  skills: Skill[];
-  preferences: JobPreference[];
-}
-
-interface Education {
-  id?: number;
-  school: string;
-  degree: string;
-  major: string;
-  start_date: string;
-  end_date: string;
-  gpa: string;
-  description: string;
-}
-
-interface ExperienceFact {
-  id?: number;
-  content: string;
-  claim_level: string;
-  risk_level: string;
-  interview_explanation: string;
-  sort_order: number;
-}
-
-interface Experience {
-  id?: number;
-  experience_type: string;
-  name: string;
-  organization: string;
-  title: string;
-  start_date: string;
-  end_date: string;
-  location: string;
-  tech_stack: string[];
-  allowed_claims: string[];
-  forbidden_claims: string[];
-  evidence: string[];
-  transferable_skills: string[];
-  facts: ExperienceFact[];
-}
-
-interface Skill {
-  id?: number;
-  name: string;
-  level: string;
-  category: string;
-}
-
-interface JobPreference {
-  id?: number;
-  target_roles: string[];
-  target_industries: string[];
-  preferred_locations: string[];
-  remote_preference: string;
-  min_duration_weeks: number | null;
-  max_duration_weeks: number | null;
-  available_from: string;
-  excluded_roles: string[];
-  extra_context: string;
-}
+import { api, Profile, Education, Experience, Skill, JobPreference, ExperienceFact } from "@/lib/api";
+import { LoadingSpinner } from "@/components/UIComponents";
 
 const emptyEducation = (): Education => ({
   school: "", degree: "", major: "", start_date: "", end_date: "", gpa: "", description: "",
@@ -94,15 +22,6 @@ const emptyPreferences = (): JobPreference => ({
   available_from: "", excluded_roles: [], extra_context: "",
 });
 
-async function apiFetch(path: string, options?: RequestInit) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options,
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,7 +29,7 @@ export default function ProfilePage() {
 
   const loadProfile = useCallback(async () => {
     try {
-      const data = await apiFetch("/profiles");
+      const data = await api.profile.get();
       setProfile(data);
     } catch (e) {
       console.error(e);
@@ -121,7 +40,7 @@ export default function ProfilePage() {
 
   useEffect(() => { loadProfile(); }, [loadProfile]);
 
-  if (loading) return <div className="max-w-3xl mx-auto px-6 py-12 text-zinc-500">加载中...</div>;
+  if (loading) return <LoadingSpinner />;
 
   const tabs = [
     { key: "basic", label: "基本信息" },
@@ -170,7 +89,7 @@ function BasicInfoForm({ profile, onUpdate }: { profile: Profile; onUpdate: () =
 
   const handleSave = async () => {
     setSaving(true);
-    await apiFetch("/profiles", { method: "PUT", body: JSON.stringify(form) });
+    await api.profile.update(form);
     setSaving(false);
     onUpdate();
   };
@@ -213,19 +132,19 @@ function EducationSection({ profile, onUpdate }: { profile: Profile; onUpdate: (
 
   const handleSave = async () => {
     if (editingId === "new") {
-      await apiFetch("/profiles/education", { method: "POST", body: JSON.stringify(form) });
+      await api.profile.addEducation(form);
     } else if (typeof editingId === "number") {
-      await apiFetch(`/profiles/education/${editingId}`, { method: "PUT", body: JSON.stringify(form) });
+      await api.profile.updateEducation(editingId, form);
     }
     setEditingId(null);
-    const p = await apiFetch("/profiles");
+    const p = await api.profile.get();
     setItems(p.education);
     onUpdate();
   };
 
   const handleDelete = async (id: number) => {
-    await apiFetch(`/profiles/education/${id}`, { method: "DELETE" });
-    const p = await apiFetch("/profiles");
+    await api.profile.deleteEducation(id);
+    const p = await api.profile.get();
     setItems(p.education);
     onUpdate();
   };
@@ -292,19 +211,19 @@ function ExperienceSection({ profile, onUpdate }: { profile: Profile; onUpdate: 
   const handleSave = async () => {
     const payload = { ...form, tech_stack: form.tech_stack.filter(Boolean), allowed_claims: form.allowed_claims.filter(Boolean), forbidden_claims: form.forbidden_claims.filter(Boolean) };
     if (editingId === "new") {
-      await apiFetch("/profiles/experiences", { method: "POST", body: JSON.stringify(payload) });
+      await api.profile.addExperience(payload);
     } else if (typeof editingId === "number") {
-      await apiFetch(`/profiles/experiences/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
+      await api.profile.updateExperience(editingId, payload);
     }
     setEditingId(null);
-    const p = await apiFetch("/profiles");
+    const p = await api.profile.get();
     setItems(p.experiences);
     onUpdate();
   };
 
   const handleDelete = async (id: number) => {
-    await apiFetch(`/profiles/experiences/${id}`, { method: "DELETE" });
-    const p = await apiFetch("/profiles");
+    await api.profile.deleteExperience(id);
+    const p = await api.profile.get();
     setItems(p.experiences);
     onUpdate();
   };
@@ -312,22 +231,20 @@ function ExperienceSection({ profile, onUpdate }: { profile: Profile; onUpdate: 
   const handleParse = async () => {
     setParsing(true);
     try {
-      const result = await apiFetch("/profiles/experiences/parse", {
-        method: "POST", body: JSON.stringify({ text: parseText, experience_type: "project" }),
-      });
+      const result = await api.profile.parseExperience(parseText, "project");
       setForm({
         ...emptyExperience(),
         experience_type: "project",
-        name: result.name || "",
-        organization: result.organization || "",
-        title: result.title || "",
-        start_date: result.start_date || "",
-        end_date: result.end_date || "",
-        location: result.location || "",
-        tech_stack: result.tech_stack || [],
-        allowed_claims: result.allowed_claims || [],
-        forbidden_claims: result.forbidden_claims || [],
-        facts: (result.facts || []).map((f: string, i: number) => ({ content: f, sort_order: i })),
+        name: (result.name as string) || "",
+        organization: (result.organization as string) || "",
+        title: (result.title as string) || "",
+        start_date: (result.start_date as string) || "",
+        end_date: (result.end_date as string) || "",
+        location: (result.location as string) || "",
+        tech_stack: (result.tech_stack as string[]) || [],
+        allowed_claims: (result.allowed_claims as string[]) || [],
+        forbidden_claims: (result.forbidden_claims as string[]) || [],
+        facts: ((result.facts as string[]) || []).map((f, i) => ({ content: f, claim_level: "participated", risk_level: "stable", interview_explanation: "", sort_order: i })),
       });
       setEditingId("new");
     } catch (e) {
@@ -370,7 +287,7 @@ function ExperienceSection({ profile, onUpdate }: { profile: Profile; onUpdate: 
               <p className="text-sm text-zinc-500">{exp.organization} · {exp.start_date} ~ {exp.end_date}</p>
               {exp.facts && exp.facts.length > 0 && (
                 <ul className="mt-2 list-disc list-inside text-sm text-zinc-600">
-                  {exp.facts.filter(f => f.content).slice(0, 3).map((f, i) => <li key={i}>{f.content}</li>)}
+                  {exp.facts.filter(f => f.content).slice(0, 3).map((f: ExperienceFact, i: number) => <li key={i}>{f.content}</li>)}
                 </ul>
               )}
             </div>
@@ -399,7 +316,7 @@ function ExperienceSection({ profile, onUpdate }: { profile: Profile; onUpdate: 
               {(["name", "organization", "title", "start_date", "end_date", "location"] as const).map((f) => (
                 <div key={f}>
                   <label className="block text-xs font-medium text-zinc-500 capitalize">{f.replace("_", " ")}</label>
-                  <input value={(form as any)[f]} onChange={(e) => setForm({ ...form, [f]: e.target.value })}
+                  <input value={(form as Record<string, string>)[f]} onChange={(e) => setForm({ ...form, [f]: e.target.value })}
                     className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" />
                 </div>
               ))}
@@ -413,14 +330,14 @@ function ExperienceSection({ profile, onUpdate }: { profile: Profile; onUpdate: 
 
             <div className="mt-4">
               <label className="block text-xs font-medium text-zinc-500">事实列表 (facts)</label>
-              {(form.facts || []).map((f, i) => (
+              {(form.facts || []).map((f: ExperienceFact, i: number) => (
                 <div key={i} className="flex gap-2 mt-1 mb-2">
                   <textarea value={f.content} onChange={(e) => {
-                    const nf = [...form.facts]; nf[i] = { ...nf[i], content: e.target.value }; setForm({ ...form, facts: nf });
+                    const nf = [...form.facts]; nf[i] = { ...nf[i], content: e.target.value }; setForm({ ...form, facts: nf as ExperienceFact[] });
                   }} className="flex-1 border border-zinc-200 rounded px-2 py-1 text-sm h-12 resize-none" />
                   <div className="flex flex-col gap-1">
                     <select value={f.claim_level} onChange={(e) => {
-                      const nf = [...form.facts]; nf[i] = { ...nf[i], claim_level: e.target.value }; setForm({ ...form, facts: nf });
+                      const nf = [...form.facts]; nf[i] = { ...nf[i], claim_level: e.target.value }; setForm({ ...form, facts: nf as ExperienceFact[] });
                     }} className="border border-zinc-200 rounded px-1 text-xs">
                       <option value="participated">参与</option>
                       <option value="responsible">负责</option>
@@ -428,7 +345,7 @@ function ExperienceSection({ profile, onUpdate }: { profile: Profile; onUpdate: 
                       <option value="independent">独立完成</option>
                     </select>
                     <select value={f.risk_level} onChange={(e) => {
-                      const nf = [...form.facts]; nf[i] = { ...nf[i], risk_level: e.target.value }; setForm({ ...form, facts: nf });
+                      const nf = [...form.facts]; nf[i] = { ...nf[i], risk_level: e.target.value }; setForm({ ...form, facts: nf as ExperienceFact[] });
                     }} className="border border-zinc-200 rounded px-1 text-xs">
                       <option value="stable">稳</option>
                       <option value="needs_explanation">需解释</option>
@@ -437,34 +354,34 @@ function ExperienceSection({ profile, onUpdate }: { profile: Profile; onUpdate: 
                     <button onClick={() => setForm({ ...form, facts: form.facts.filter((_, j) => j !== i) })} className="text-red-400 text-xs">删除</button>
                   </div>
                   <input value={f.interview_explanation} onChange={(e) => {
-                    const nf = [...form.facts]; nf[i] = { ...nf[i], interview_explanation: e.target.value }; setForm({ ...form, facts: nf });
-                  }} className="w-full border border-zinc-200 rounded px-2 py-1 text-xs mt-1" placeholder="面试时怎么讲：可以说明架构设计思路和选型原因..." />
+                    const nf = [...form.facts]; nf[i] = { ...nf[i], interview_explanation: e.target.value }; setForm({ ...form, facts: nf as ExperienceFact[] });
+                  }} className="w-full border border-zinc-200 rounded px-2 py-1 text-xs mt-1" placeholder="面试时怎么讲..." />
                 </div>
               ))}
-              <button onClick={() => setForm({ ...form, facts: [...form.facts, { content: "", claim_level: "participated", risk_level: "stable", interview_explanation: "", sort_order: form.facts.length }] })}
+              <button onClick={() => setForm({ ...form, facts: [...form.facts, { content: "", claim_level: "participated", risk_level: "stable", interview_explanation: "", sort_order: form.facts.length } as ExperienceFact] })}
                 className="text-sm text-blue-600 mt-1">+ 添加事实</button>
             </div>
 
             <div className="mt-4 grid sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-zinc-500">允许声称 (allowed_claims) 逗号分隔</label>
+                <label className="block text-xs font-medium text-zinc-500">允许声称 逗号分隔</label>
                 <input value={form.allowed_claims.join(", ")} onChange={(e) => setForm({ ...form, allowed_claims: e.target.value.split(",").map(s => s.trim()) })}
                   className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-500">禁止声称 (forbidden_claims) 逗号分隔</label>
+                <label className="block text-xs font-medium text-zinc-500">禁止声称 逗号分隔</label>
                 <input value={form.forbidden_claims.join(", ")} onChange={(e) => setForm({ ...form, forbidden_claims: e.target.value.split(",").map(s => s.trim()) })}
                   className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-500">证明材料 (evidence) 逗号分隔，如链接/截图路径</label>
+                <label className="block text-xs font-medium text-zinc-500">证明材料 逗号分隔</label>
                 <input value={form.evidence.join(", ")} onChange={(e) => setForm({ ...form, evidence: e.target.value.split(",").map(s => s.trim()) })}
-                  className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" placeholder="https://github.com/xxx, 文件路径..." />
+                  className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" placeholder="https://github.com/xxx" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-500">可迁移技能 (transferable_skills) 逗号分隔</label>
+                <label className="block text-xs font-medium text-zinc-500">可迁移技能 逗号分隔</label>
                 <input value={form.transferable_skills.join(", ")} onChange={(e) => setForm({ ...form, transferable_skills: e.target.value.split(",").map(s => s.trim()) })}
-                  className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" placeholder="系统设计, 需求分析, 项目管理" />
+                  className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" placeholder="系统设计, 需求分析" />
               </div>
             </div>
 
@@ -485,16 +402,16 @@ function SkillsSection({ profile, onUpdate }: { profile: Profile; onUpdate: () =
 
   const handleAdd = async () => {
     if (!form.name.trim()) return;
-    await apiFetch("/profiles/skills", { method: "POST", body: JSON.stringify(form) });
+    await api.profile.addSkill(form);
     setForm(emptySkill());
-    const p = await apiFetch("/profiles");
+    const p = await api.profile.get();
     setItems(p.skills);
     onUpdate();
   };
 
   const handleDelete = async (id: number) => {
-    await apiFetch(`/profiles/skills/${id}`, { method: "DELETE" });
-    const p = await apiFetch("/profiles");
+    await api.profile.deleteSkill(id);
+    const p = await api.profile.get();
     setItems(p.skills);
     onUpdate();
   };
@@ -549,14 +466,13 @@ function PreferencesSection({ profile, onUpdate }: { profile: Profile; onUpdate:
 
   const handleSave = async () => {
     setSaving(true);
-    const payload = {
+    await api.profile.updatePreferences({
       ...form,
       target_roles: form.target_roles.filter(Boolean),
       target_industries: form.target_industries.filter(Boolean),
       preferred_locations: form.preferred_locations.filter(Boolean),
       excluded_roles: form.excluded_roles.filter(Boolean),
-    };
-    await apiFetch("/profiles/preferences", { method: "PUT", body: JSON.stringify(payload) });
+    });
     setSaving(false);
     onUpdate();
   };

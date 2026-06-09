@@ -1,6 +1,6 @@
 import json
 import logging
-from app.llm import DeepSeekProvider
+from app.utils.agent_base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +35,8 @@ Checks:
 """
 
 
-class ResumeReviewerAgent:
-    def __init__(self):
-        self.llm = DeepSeekProvider()
+class ResumeReviewerAgent(BaseAgent):
+    agent_name = "resume_reviewer"
 
     def review(self, resume_content: dict, profile_data: dict, job_data: dict, previous_version: dict = None) -> dict:
         prompt = f"""Resume Content:
@@ -56,24 +55,9 @@ Previous Version of this Resume:
 {json.dumps(previous_version, ensure_ascii=False, indent=2)}
 
 Compare the current version with the previous version. Note any style drift, regression in quality, or improvements."""
-        try:
-            response = self.llm.chat_with_reasoning(
-                messages=[
-                    {"role": "system", "content": RESUME_REVIEW_SYSTEM},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.1,
-                agent_name="resume_reviewer",
-            )
-            if "```json" in response:
-                start = response.index("```json") + 7
-                end = response.index("```", start)
-                response = response[start:end].strip()
-            elif "```" in response:
-                start = response.index("```") + 3
-                end = response.index("```", start)
-                response = response[start:end].strip()
-            return json.loads(response)
-        except (json.JSONDecodeError, Exception) as e:
-            logger.warning(f"Resume review failed: {e}")
-            return {"problems": [], "overall_status": "needs_revision"}
+
+        return self._call_llm_with_reasoning(
+            system_prompt=RESUME_REVIEW_SYSTEM,
+            user_prompt=prompt,
+            fallback={"problems": [], "overall_status": "needs_revision"},
+        )

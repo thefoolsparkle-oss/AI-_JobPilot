@@ -1,6 +1,6 @@
 import json
 import logging
-from app.llm import DeepSeekProvider
+from app.utils.agent_base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -41,21 +41,13 @@ FALLBACK_JD = {
 }
 
 
-class JDParserAgent:
-    def __init__(self):
-        self.llm = DeepSeekProvider()
+class JDParserAgent(BaseAgent):
+    agent_name = "jd_parser"
 
     def parse(self, jd_text: str) -> dict:
-        try:
-            response = self.llm.chat(
-                messages=[
-                    {"role": "system", "content": JD_PARSE_SYSTEM},
-                    {"role": "user", "content": f"Parse this job description:\n\n{jd_text[:4000]}"},
-                ],
-                temperature=0.1,
-                agent_name="jd_parser",
-            )
-            return json.loads(response)
-        except Exception as e:
-            logger.warning(f"JD parse failed: {e}")
-            return dict(FALLBACK_JD)
+        return self._call_llm_json(
+            system_prompt=JD_PARSE_SYSTEM,
+            user_prompt=f"Parse this job description:\n\n{jd_text[:4000]}",
+            fallback=FALLBACK_JD,
+            temperature=0.1,
+        )

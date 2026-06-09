@@ -2,11 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-
-const API_BASE = "/api";
-
-interface Job { id: number; title: string; company: string; location: string; url: string; }
-interface SearchResult { title: string; url: string; snippet: string; }
+import { api, Job, SearchResult } from "@/lib/api";
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -17,7 +13,7 @@ export default function JobsPage() {
   const [status, setStatus] = useState("");
 
   const loadJobs = async () => {
-    try { const r = await fetch(`${API_BASE}/jobs`); setJobs(await r.json()); } catch (e) { console.error(e); }
+    try { setJobs(await api.jobs.list()); } catch (e) { console.error(e); }
   };
 
   useEffect(() => { loadJobs(); }, []);
@@ -27,15 +23,11 @@ export default function JobsPage() {
     setSearching(true);
     setStatus("搜索中...");
     try {
-      const r = await fetch(`${API_BASE}/discover/search`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, max_results: 10 }),
-      });
-      const data = await r.json();
+      const data = await api.discover.search(query, 10);
       setSearchResults(data.results || []);
       setStatus(`找到 ${data.results?.length || 0} 个结果`);
-    } catch (e: any) {
-      setStatus(`搜索失败: ${e.message}`);
+    } catch (e: unknown) {
+      setStatus(`搜索失败: ${(e as Error).message}`);
     } finally { setSearching(false); }
   };
 
@@ -44,14 +36,11 @@ export default function JobsPage() {
     setSaving(true);
     setStatus("保存并解析中...");
     try {
-      await fetch(`${API_BASE}/discover/save-and-parse`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, max_results: 5 }),
-      });
+      await api.discover.saveAndParse(query, 5);
       setStatus("已保存并开始解析，刷新查看结果");
       await loadJobs();
-    } catch (e: any) {
-      setStatus(`失败: ${e.message}`);
+    } catch (e: unknown) {
+      setStatus(`失败: ${(e as Error).message}`);
     } finally { setSaving(false); }
   };
 
@@ -59,10 +48,10 @@ export default function JobsPage() {
     setSearching(true);
     setStatus("自动发现中...");
     try {
-      await fetch(`${API_BASE}/discover/search-all`, { method: "POST" });
+      await api.discover.searchAll();
       setStatus("搜索策略已执行");
-    } catch (e: any) {
-      setStatus(`失败: ${e.message}`);
+    } catch (e: unknown) {
+      setStatus(`失败: ${(e as Error).message}`);
     } finally { setSearching(false); }
   };
 

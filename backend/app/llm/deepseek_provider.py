@@ -161,10 +161,12 @@ class DeepSeekProvider(LLMProvider):
         messages: list[dict[str, str]],
         response_format: Optional[dict[str, Any]] = None,
         temperature: Optional[float] = None,
+        agent_name: str = "",
     ) -> str:
         return await self.achat(
             messages=messages,
             response_format=response_format,
             temperature=temperature,
             model=self.reasoning_model,
+            agent_name=agent_name,
         )
