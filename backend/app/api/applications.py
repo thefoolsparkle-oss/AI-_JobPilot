@@ -1,20 +1,18 @@
-from typing import Optional
-import os
-from uuid import uuid4
 from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from app.db.session import get_db
-from app.db.models import ApplicationPackage, Job, ResumeVersion, User
-from app.auth import get_current_user
-from app.services.application_service import ApplicationService, SearchService
-from app.services.web_fetcher import WebFetcher
-from app.services.search_executor import SearchExecutor
 from app.agents.form_assistant import FormAssistantAgent
+from app.auth import get_current_user
+from app.db.models import ApplicationPackage, Job, ResumeVersion, User
+from app.db.session import get_db
+from app.services.application_service import ApplicationService, SearchService
 from app.services.profile_service import ProfileService
+from app.services.search_executor import SearchExecutor
+from app.services.web_fetcher import WebFetcher
 from app.utils.profile_utils import ProfileDataBuilder
 
 
@@ -24,8 +22,8 @@ class GeneratePackageRequest(BaseModel):
 
 class FormAssistRequest(BaseModel):
     form_text: str = ""
-    job_id: Optional[int] = None
-    resume_id: Optional[int] = None
+    job_id: int | None = None
+    resume_id: int | None = None
     image_path: str = ""
 
 

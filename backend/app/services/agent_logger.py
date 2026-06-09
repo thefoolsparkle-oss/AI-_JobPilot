@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Optional
+
 from sqlalchemy.orm import Session
 
 from app.db.models import AgentRun, LLMCall
@@ -14,8 +14,8 @@ class AgentLogger:
 
     def __init__(self, agent_name: str):
         self.agent_name = agent_name
-        self._run_id: Optional[int] = None
-        self._start_time: Optional[float] = None
+        self._run_id: int | None = None
+        self._start_time: float | None = None
         self._success = True
         self._error_msg = ""
 
@@ -30,10 +30,10 @@ class AgentLogger:
     def log_llm_call(
         self,
         model: str,
-        prompt_tokens: Optional[int] = None,
-        completion_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        duration_ms: Optional[int] = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        temperature: float | None = None,
+        duration_ms: int | None = None,
     ):
         db: Session = SessionLocal()
         try:

@@ -1,6 +1,6 @@
-from typing import Optional
-from sqlalchemy.orm import Session
+
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.db.models import Job
 
@@ -27,7 +27,7 @@ class JobService:
         db.refresh(job)
         return job
 
-    def get_job(self, db: Session, job_id: int, user_id: int) -> Optional[Job]:
+    def get_job(self, db: Session, job_id: int, user_id: int) -> Job | None:
         return db.execute(
             select(Job).where(Job.id == job_id, Job.user_id == user_id)
         ).scalar_one_or_none()

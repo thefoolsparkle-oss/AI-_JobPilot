@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -53,5 +52,5 @@ class WebFetcher:
             return {"error": str(e), "title": "", "content": "", "url": url}
 
     def _clean_text(self, text: str) -> str:
-        lines = [l.strip() for l in text.split("\n") if l.strip()]
+        lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
         return "\n".join(lines)

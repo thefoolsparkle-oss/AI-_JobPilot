@@ -1,9 +1,8 @@
-from typing import Optional
-from sqlalchemy.orm import Session
+
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.db.models import ResumeTemplate
-
 
 TEMPLATE_SEEDS = [
     {
@@ -40,12 +39,12 @@ class TemplateService:
 
     def list_templates(self, db: Session) -> list[ResumeTemplate]:
         self.seed_templates(db)
-        return list(db.execute(select(ResumeTemplate).where(ResumeTemplate.is_active == True)).scalars().all())
+        return list(db.execute(select(ResumeTemplate).where(ResumeTemplate.is_active)).scalars().all())
 
-    def get_template(self, db: Session, template_id: int) -> Optional[ResumeTemplate]:
+    def get_template(self, db: Session, template_id: int) -> ResumeTemplate | None:
         return db.get(ResumeTemplate, template_id)
 
-    def get_template_by_style(self, db: Session, style: str) -> Optional[ResumeTemplate]:
+    def get_template_by_style(self, db: Session, style: str) -> ResumeTemplate | None:
         return db.execute(
-            select(ResumeTemplate).where(ResumeTemplate.style == style, ResumeTemplate.is_active == True)
+            select(ResumeTemplate).where(ResumeTemplate.style == style, ResumeTemplate.is_active)
         ).scalar_one_or_none()

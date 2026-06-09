@@ -1,8 +1,7 @@
-from typing import Optional
+
 from app.llm.provider import LLMProvider
 
-
-_llm_instance: Optional[LLMProvider] = None
+_llm_instance: LLMProvider | None = None
 
 
 def get_llm() -> LLMProvider:

@@ -1,20 +1,26 @@
-from typing import Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import select, desc
 
-from app.db.models import User, Profile, Job, JobMatch, ResumeVersion, ResumeTemplate, ApplicationPackage
+from sqlalchemy import desc, select
+from sqlalchemy.orm import Session
+
+from app.agents.application_writer import ApplicationWriterAgent
 from app.agents.job_matcher import JobMatcherAgent
-from app.agents.search_strategy import SearchStrategyAgent
 from app.agents.resume_customizer import ResumeCustomizerAgent
 from app.agents.resume_reviewer import ResumeReviewerAgent
-from app.agents.application_writer import ApplicationWriterAgent
-from app.services.profile_service import ProfileService
+from app.agents.search_strategy import SearchStrategyAgent
+from app.db.models import (
+    ApplicationPackage,
+    Job,
+    JobMatch,
+    ResumeTemplate,
+    ResumeVersion,
+)
 from app.services.document_export_service import DocumentExportService
+from app.services.profile_service import ProfileService
 from app.utils.profile_utils import ProfileDataBuilder
 
 
 class JobMatchingService:
-    def match_job(self, db: Session, user_id: int, job_id: int) -> Optional[JobMatch]:
+    def match_job(self, db: Session, user_id: int, job_id: int) -> JobMatch | None:
         job = db.execute(
             select(Job).where(Job.id == job_id, Job.user_id == user_id)
         ).scalar_one_or_none()
@@ -67,13 +73,13 @@ class JobMatchingService:
         db.refresh(match)
         return match
 
-    def get_match(self, db: Session, job_id: int) -> Optional[JobMatch]:
+    def get_match(self, db: Session, job_id: int) -> JobMatch | None:
         return db.execute(
             select(JobMatch).where(JobMatch.job_id == job_id).order_by(JobMatch.created_at.desc())
         ).scalars().first()
 
     @staticmethod
-    def _parse_duration_months(text: str) -> Optional[int]:
+    def _parse_duration_months(text: str) -> int | None:
         import re
         patterns = [
             r'(\d+)\s*个月',
@@ -91,7 +97,7 @@ class JobMatchingService:
 
 
 class ResumeGenerationService:
-    def generate_resume(self, db: Session, user_id: int, job_id: int, template_id: int) -> Optional[ResumeVersion]:
+    def generate_resume(self, db: Session, user_id: int, job_id: int, template_id: int) -> ResumeVersion | None:
         job = db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id)).scalar_one_or_none()
         template = db.get(ResumeTemplate, template_id)
         if not job or not template or not job.parsed_jd:
@@ -129,7 +135,7 @@ class ResumeGenerationService:
         db.refresh(version)
         return version
 
-    def review_resume(self, db: Session, user_id: int, resume_id: int, job_id: int) -> Optional[dict]:
+    def review_resume(self, db: Session, user_id: int, resume_id: int, job_id: int) -> dict | None:
         resume = db.execute(
             select(ResumeVersion).where(ResumeVersion.id == resume_id, ResumeVersion.user_id == user_id)
         ).scalar_one_or_none()
@@ -160,7 +166,7 @@ class ResumeGenerationService:
 
 
 class ApplicationService:
-    def generate_package(self, db: Session, user_id: int, job_id: int) -> Optional[ApplicationPackage]:
+    def generate_package(self, db: Session, user_id: int, job_id: int) -> ApplicationPackage | None:
         job = db.execute(
             select(Job).where(Job.id == job_id, Job.user_id == user_id)
         ).scalar_one_or_none()

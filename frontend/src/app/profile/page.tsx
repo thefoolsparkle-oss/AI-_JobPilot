@@ -316,7 +316,7 @@ function ExperienceSection({ profile, onUpdate }: { profile: Profile; onUpdate: 
               {(["name", "organization", "title", "start_date", "end_date", "location"] as const).map((f) => (
                 <div key={f}>
                   <label className="block text-xs font-medium text-zinc-500 capitalize">{f.replace("_", " ")}</label>
-                  <input value={(form as Record<string, string>)[f]} onChange={(e) => setForm({ ...form, [f]: e.target.value })}
+                  <input value={String(form[f] ?? "")} onChange={(e) => setForm({ ...form, [f]: e.target.value })}
                     className="w-full border border-zinc-200 rounded px-2 py-1 text-sm" />
                 </div>
               ))}

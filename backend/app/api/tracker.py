@@ -1,12 +1,13 @@
-from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import select, desc
-from pydantic import BaseModel
+from datetime import UTC, datetime
 
-from app.db.session import get_db
-from app.db.models import ApplicationRecord, Job, User
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import desc, select
+from sqlalchemy.orm import Session
+
 from app.auth import get_current_user
+from app.db.models import ApplicationRecord, Job, User
+from app.db.session import get_db
 
 
 class UpdateStatusRequest(BaseModel):
@@ -94,7 +95,7 @@ def upsert_record(job_id: int, req: UpdateStatusRequest, user: User = Depends(ge
         record.interview_log = req.interview_log
 
     if req.status == "applied" and not record.applied_at:
-        record.applied_at = datetime.now(timezone.utc)
+        record.applied_at = datetime.now(UTC)
 
     db.commit()
     db.refresh(record)

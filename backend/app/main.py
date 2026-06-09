@@ -1,22 +1,22 @@
 import logging
+import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import time
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 
-from app.core.config import settings
-from app.db.session import engine, Base
+from app.api.applications import router as applications_router
+from app.api.auth import router as auth_router
+from app.api.jobs import router as jobs_router
 from app.api.profiles import router as profiles_router
 from app.api.resumes import router as resumes_router
-from app.api.jobs import router as jobs_router
-from app.api.applications import router as applications_router
 from app.api.settings import router as settings_router
 from app.api.tracker import router as tracker_router
-from app.api.auth import router as auth_router
+from app.core.config import settings
+from app.db.session import Base, engine
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting JobPilot...")
     Base.metadata.create_all(bind=engine)
-    from app.services.resume_service import TemplateService
     from app.db.session import SessionLocal
+    from app.services.resume_service import TemplateService
     db = SessionLocal()
     try:
         TemplateService().seed_templates(db)

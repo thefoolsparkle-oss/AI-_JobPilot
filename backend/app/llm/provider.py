@@ -1,5 +1,5 @@
-from typing import Any, Optional
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class LLMProvider(ABC):
@@ -7,10 +7,10 @@ class LLMProvider(ABC):
     def chat(
         self,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]] = None,
-        temperature: Optional[float] = None,
-        model: Optional[str] = None,
-        max_tokens: Optional[int] = None,
+        response_format: dict[str, Any] | None = None,
+        temperature: float | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
         agent_name: str = "",
     ) -> str:
         raise NotImplementedError
@@ -19,10 +19,10 @@ class LLMProvider(ABC):
     async def achat(
         self,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]] = None,
-        temperature: Optional[float] = None,
-        model: Optional[str] = None,
-        max_tokens: Optional[int] = None,
+        response_format: dict[str, Any] | None = None,
+        temperature: float | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
         agent_name: str = "",
     ) -> str:
         raise NotImplementedError
@@ -30,8 +30,8 @@ class LLMProvider(ABC):
     def chat_with_reasoning(
         self,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]] = None,
-        temperature: Optional[float] = None,
+        response_format: dict[str, Any] | None = None,
+        temperature: float | None = None,
         agent_name: str = "",
     ) -> str:
         return self.chat(messages=messages, response_format=response_format, temperature=temperature, agent_name=agent_name)
@@ -39,8 +39,8 @@ class LLMProvider(ABC):
     async def achat_with_reasoning(
         self,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]] = None,
-        temperature: Optional[float] = None,
+        response_format: dict[str, Any] | None = None,
+        temperature: float | None = None,
         agent_name: str = "",
     ) -> str:
         return await self.achat(messages=messages, response_format=response_format, temperature=temperature, agent_name=agent_name)

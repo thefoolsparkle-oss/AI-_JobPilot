@@ -1,15 +1,15 @@
-from typing import Optional
 import re
+
 from sqlalchemy.orm import Session
 
-from app.db.models import Job, JobMatch
 from app.agents.job_matcher import JobMatcherAgent
+from app.db.models import Job, JobMatch
 from app.services.profile_service import ProfileService
 from app.utils.profile_utils import ProfileDataBuilder
 
 
 class JobMatchingService:
-    def match_job(self, db: Session, job_id: int) -> Optional[JobMatch]:
+    def match_job(self, db: Session, job_id: int) -> JobMatch | None:
         job = db.get(Job, job_id)
         if not job or not job.parsed_jd:
             return None
@@ -60,14 +60,14 @@ class JobMatchingService:
         db.refresh(match)
         return match
 
-    def get_match(self, db: Session, job_id: int) -> Optional[JobMatch]:
+    def get_match(self, db: Session, job_id: int) -> JobMatch | None:
         from sqlalchemy import select
         return db.execute(
             select(JobMatch).where(JobMatch.job_id == job_id).order_by(JobMatch.created_at.desc())
         ).scalars().first()
 
     @staticmethod
-    def _parse_duration_months(text: str) -> Optional[int]:
+    def _parse_duration_months(text: str) -> int | None:
         patterns = [
             r'(\d+)\s*个月',
             r'(\d+)\s*月(?:[^0-9]|$)',

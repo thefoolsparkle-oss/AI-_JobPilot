@@ -1,9 +1,8 @@
-import json
-import time
 import logging
-from typing import Any, Optional
+import time
+from typing import Any
 
-from openai import OpenAI, AsyncOpenAI
+from openai import AsyncOpenAI, OpenAI
 
 from app.core.config import settings
 from app.llm.provider import LLMProvider
@@ -31,7 +30,7 @@ class DeepSeekProvider(LLMProvider):
             api_key=api_key,
             base_url=models["base_url"],
         )
-        self._aclient: Optional[AsyncOpenAI] = None
+        self._aclient: AsyncOpenAI | None = None
         self.fast_model = models["fast_model"]
         self.reasoning_model = models["reasoning_model"]
         self.default_temperature = settings.LLM_TEMPERATURE
@@ -50,9 +49,9 @@ class DeepSeekProvider(LLMProvider):
         self,
         model: str,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]],
-        temperature: Optional[float],
-        max_tokens: Optional[int],
+        response_format: dict[str, Any] | None,
+        temperature: float | None,
+        max_tokens: int | None,
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": model,
@@ -66,7 +65,7 @@ class DeepSeekProvider(LLMProvider):
         return kwargs
 
     def _retry_chat(self, kwargs: dict[str, Any], agent_name: str = "") -> str:
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         t0 = time.time()
         model = kwargs.get("model", "")
         for attempt in range(self.max_retries + 1):
@@ -94,7 +93,7 @@ class DeepSeekProvider(LLMProvider):
             pass
 
     async def _retry_achat(self, kwargs: dict[str, Any]) -> str:
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         aclient = self._get_aclient()
         for attempt in range(self.max_retries + 1):
             try:
@@ -108,10 +107,10 @@ class DeepSeekProvider(LLMProvider):
     def chat(
         self,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]] = None,
-        temperature: Optional[float] = None,
-        model: Optional[str] = None,
-        max_tokens: Optional[int] = None,
+        response_format: dict[str, Any] | None = None,
+        temperature: float | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
         agent_name: str = "",
     ) -> str:
         kwargs = self._build_kwargs(
@@ -126,10 +125,10 @@ class DeepSeekProvider(LLMProvider):
     async def achat(
         self,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]] = None,
-        temperature: Optional[float] = None,
-        model: Optional[str] = None,
-        max_tokens: Optional[int] = None,
+        response_format: dict[str, Any] | None = None,
+        temperature: float | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
         agent_name: str = "",
     ) -> str:
         kwargs = self._build_kwargs(
@@ -144,8 +143,8 @@ class DeepSeekProvider(LLMProvider):
     def chat_with_reasoning(
         self,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]] = None,
-        temperature: Optional[float] = None,
+        response_format: dict[str, Any] | None = None,
+        temperature: float | None = None,
         agent_name: str = "",
     ) -> str:
         return self.chat(
@@ -159,8 +158,8 @@ class DeepSeekProvider(LLMProvider):
     async def achat_with_reasoning(
         self,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]] = None,
-        temperature: Optional[float] = None,
+        response_format: dict[str, Any] | None = None,
+        temperature: float | None = None,
         agent_name: str = "",
     ) -> str:
         return await self.achat(

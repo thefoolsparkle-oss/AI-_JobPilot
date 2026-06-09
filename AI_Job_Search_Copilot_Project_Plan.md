@@ -2062,6 +2062,66 @@ pytest tests/ -v
 
 ---
 
+# 多用户认证 (2026-06-09)
+
+## 后端
+
+| 文件 | 变更 |
+|------|------|
+| `db/models.py` | 新增 `User` 表 (email, hashed_password, is_active)，6 张表增加 `user_id` FK (Profile, Job, ResumeVersion, ApplicationRecord, AgentRun) |
+| `auth/__init__.py` | JWT (python-jose + HS256) 生成/验证，bcrypt 密码哈希，`get_current_user` + `get_optional_user` 依赖注入 |
+| `api/auth.py` | `POST /api/auth/register`, `POST /api/auth/login`, `GET/PUT /api/auth/me` |
+| 所有 API 端点 | 全部加 `Depends(get_current_user)`，查询带 `user_id` 过滤 |
+
+## 前端
+
+| 文件 | 变更 |
+|------|------|
+| `lib/auth.tsx` | `AuthProvider` + `useAuth` hook: login/register/logout，JWT 存储在 localStorage |
+| `lib/api.ts` | `request()` 自动从 localStorage 读取 token 附加 `Authorization: Bearer` header |
+| `app/login/page.tsx` | 登录页面 |
+| `app/register/page.tsx` | 注册页面 |
+| `app/layout.tsx` | 包裹 `<AuthProvider>` |
+| `components/NavBar.tsx` | 显示用户邮箱 + 退出按钮（未登录显示"登录"入口） |
+| `app/page.tsx` | 根据登录状态显示不同引导提示 |
+
+## 测试
+
+- 新增 `test_user_isolation` — 验证两个用户数据完全隔离
+- 新增 6 个 auth 测试 — register/login/me/duplicate/wrong/weak
+- 新增 `test_protected_route_no_auth` — 无 token 返回 401
+- 全部 116 测试通过
+
+---
+
+# Docker + CI/CD (2026-06-09)
+
+## Docker
+
+| 文件 | 用途 |
+|------|------|
+| `Dockerfile` | 后端镜像: Python 3.14 + FastAPI + Playwright + PostgreSQL |
+| `frontend/Dockerfile` | 前端构建: Node 22 → Next.js static export |
+| `docker-compose.yml` | PostgreSQL 16 + Backend，健康检查，数据卷持久化 |
+| `.env.docker` | Docker 环境变量模板 |
+| `.dockerignore` | 排除 node_modules/.next/tests 等 |
+
+## CI/CD
+
+| 文件 | 用途 |
+|------|------|
+| `.github/workflows/test.yml` | 3 个 job: backend test+lint+typecheck, frontend typecheck+lint, docker build |
+| `pyproject.toml` | ruff + mypy + pytest 统一配置 |
+
+## 代码质量
+
+- `ruff check` → 0 errors (166 fixed automatically)
+- `tsc --noEmit` → 0 errors
+- 移除 `== True` / 模糊变量名 `l` → `ln` / 未使用的 import
+- `.env.example` 更新包含全部配置项
+
+---
+
 # 代码优化记录 (2026-06-09)
 
 > 本次优化针对代码审查中发现的 20 个问题进行了系统性重构。

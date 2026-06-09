@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Optional
+from typing import Any
+
 from openai import OpenAI
 
 from app.llm.provider import LLMProvider
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 class OpenAIProvider(LLMProvider):
     def __init__(self, api_key: str, base_url: str, model: str):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
-        self._aclient: Optional[Any] = None
+        self._aclient: Any | None = None
         self.default_model = model
         self.default_temperature = 0.2
 
@@ -22,11 +23,11 @@ class OpenAIProvider(LLMProvider):
 
     def _build_kwargs(
         self,
-        model: Optional[str],
+        model: str | None,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]],
-        temperature: Optional[float],
-        max_tokens: Optional[int],
+        response_format: dict[str, Any] | None,
+        temperature: float | None,
+        max_tokens: int | None,
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": model or self.default_model,
@@ -42,10 +43,10 @@ class OpenAIProvider(LLMProvider):
     def chat(
         self,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]] = None,
-        temperature: Optional[float] = None,
-        model: Optional[str] = None,
-        max_tokens: Optional[int] = None,
+        response_format: dict[str, Any] | None = None,
+        temperature: float | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
         agent_name: str = "",
     ) -> str:
         kwargs = self._build_kwargs(model, messages, response_format, temperature, max_tokens)
@@ -59,10 +60,10 @@ class OpenAIProvider(LLMProvider):
     async def achat(
         self,
         messages: list[dict[str, str]],
-        response_format: Optional[dict[str, Any]] = None,
-        temperature: Optional[float] = None,
-        model: Optional[str] = None,
-        max_tokens: Optional[int] = None,
+        response_format: dict[str, Any] | None = None,
+        temperature: float | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
         agent_name: str = "",
     ) -> str:
         kwargs = self._build_kwargs(model, messages, response_format, temperature, max_tokens)

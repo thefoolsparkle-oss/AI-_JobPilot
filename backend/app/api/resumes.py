@@ -1,15 +1,16 @@
 import os
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from app.db.session import get_db
-from app.db.models import ResumeVersion, User
 from app.auth import get_current_user
-from app.services.resume_service import TemplateService
+from app.db.models import ResumeVersion, User
+from app.db.session import get_db
 from app.services.application_service import ResumeGenerationService
 from app.services.document_export_service import DocumentExportService
+from app.services.resume_service import TemplateService
 
 router = APIRouter(prefix="/api", tags=["resumes"])
 template_service = TemplateService()

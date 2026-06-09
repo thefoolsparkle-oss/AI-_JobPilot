@@ -1,16 +1,22 @@
-from typing import Optional
-from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select
 
-from app.db.models import Profile, Education, Experience, ExperienceFact, Skill, JobPreference
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
+
+from app.db.models import (
+    Education,
+    Experience,
+    ExperienceFact,
+    JobPreference,
+    Profile,
+    Skill,
+)
 from app.schemas.profile import (
-    ProfileSchema,
-    ProfileUpdate,
     EducationSchema,
     ExperienceSchema,
-    ExperienceFactSchema,
-    SkillSchema,
     JobPreferenceSchema,
+    ProfileSchema,
+    ProfileUpdate,
+    SkillSchema,
 )
 
 
@@ -59,7 +65,7 @@ class ProfileService:
         db.refresh(edu)
         return EducationSchema.model_validate(edu)
 
-    def update_education(self, db: Session, user_id: int, edu_id: int, data: EducationSchema) -> Optional[EducationSchema]:
+    def update_education(self, db: Session, user_id: int, edu_id: int, data: EducationSchema) -> EducationSchema | None:
         profile = self._get_or_create_profile(db, user_id)
         edu = db.execute(
             select(Education).where(Education.id == edu_id, Education.profile_id == profile.id)
@@ -104,7 +110,7 @@ class ProfileService:
         db.refresh(exp)
         return ExperienceSchema.model_validate(exp)
 
-    def update_experience(self, db: Session, user_id: int, exp_id: int, data: ExperienceSchema) -> Optional[ExperienceSchema]:
+    def update_experience(self, db: Session, user_id: int, exp_id: int, data: ExperienceSchema) -> ExperienceSchema | None:
         profile = self._get_or_create_profile(db, user_id)
         exp = db.execute(
             select(Experience).where(Experience.id == exp_id, Experience.profile_id == profile.id)

@@ -1,2 +1,2 @@
-from app.llm.provider import LLMProvider
-from app.llm.deepseek_provider import DeepSeekProvider
+from app.llm.deepseek_provider import DeepSeekProvider as DeepSeekProvider
+from app.llm.provider import LLMProvider as LLMProvider

@@ -1,11 +1,11 @@
 from datetime import datetime
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
 class EducationSchema(BaseModel):
-    id: Optional[int] = None
-    profile_id: Optional[int] = None
+    id: int | None = None
+    profile_id: int | None = None
     school: str = ""
     degree: str = ""
     major: str = ""
@@ -18,8 +18,8 @@ class EducationSchema(BaseModel):
 
 
 class ExperienceFactSchema(BaseModel):
-    id: Optional[int] = None
-    experience_id: Optional[int] = None
+    id: int | None = None
+    experience_id: int | None = None
     content: str = ""
     claim_level: str = "participated"
     risk_level: str = "stable"
@@ -30,8 +30,8 @@ class ExperienceFactSchema(BaseModel):
 
 
 class ExperienceSchema(BaseModel):
-    id: Optional[int] = None
-    profile_id: Optional[int] = None
+    id: int | None = None
+    profile_id: int | None = None
     experience_type: str = "internship"
     name: str = ""
     organization: str = ""
@@ -50,8 +50,8 @@ class ExperienceSchema(BaseModel):
 
 
 class SkillSchema(BaseModel):
-    id: Optional[int] = None
-    profile_id: Optional[int] = None
+    id: int | None = None
+    profile_id: int | None = None
     name: str
     level: str = "intermediate"
     category: str = "programming"
@@ -60,14 +60,14 @@ class SkillSchema(BaseModel):
 
 
 class JobPreferenceSchema(BaseModel):
-    id: Optional[int] = None
-    profile_id: Optional[int] = None
+    id: int | None = None
+    profile_id: int | None = None
     target_roles: list[str] = Field(default_factory=list)
     target_industries: list[str] = Field(default_factory=list)
     preferred_locations: list[str] = Field(default_factory=list)
     remote_preference: str = "any"
-    min_duration_weeks: Optional[int] = None
-    max_duration_weeks: Optional[int] = None
+    min_duration_weeks: int | None = None
+    max_duration_weeks: int | None = None
     available_from: str = ""
     excluded_roles: list[str] = Field(default_factory=list)
     extra_context: str = ""
@@ -76,7 +76,7 @@ class JobPreferenceSchema(BaseModel):
 
 
 class ProfileSchema(BaseModel):
-    id: Optional[int] = None
+    id: int | None = None
     name: str = ""
     email: str = ""
     phone: str = ""
@@ -88,20 +88,20 @@ class ProfileSchema(BaseModel):
     experiences: list[ExperienceSchema] = Field(default_factory=list)
     skills: list[SkillSchema] = Field(default_factory=list)
     preferences: list[JobPreferenceSchema] = Field(default_factory=list)
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
 
 class ProfileUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    location: Optional[str] = None
-    linkedin: Optional[str] = None
-    github: Optional[str] = None
-    portfolio: Optional[str] = None
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    linkedin: str | None = None
+    github: str | None = None
+    portfolio: str | None = None
 
 
 class RawExperienceInput(BaseModel):

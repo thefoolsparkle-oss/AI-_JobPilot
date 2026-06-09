@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Optional
+
 from docx import Document
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -67,7 +67,7 @@ class DocumentExportService:
         for title, content in section_defs:
             if not content:
                 continue
-            lines = [l.strip().lstrip("- ") for l in str(content).strip().split("\n") if l.strip()]
+            lines = [ln.strip().lstrip("- ") for ln in str(content).strip().split("\n") if ln.strip()]
             if not lines:
                 continue
             lis = "".join(f"<li>{line}</li>" for line in lines)

@@ -1,5 +1,5 @@
-import json
 import logging
+
 from app.utils.json_utils import extract_json
 
 logger = logging.getLogger(__name__)

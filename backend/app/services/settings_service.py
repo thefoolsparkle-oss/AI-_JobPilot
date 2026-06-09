@@ -1,7 +1,8 @@
+import base64
 import json
 import os
-import base64
 from pathlib import Path
+
 from cryptography.fernet import Fernet
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent

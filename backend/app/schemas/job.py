@@ -1,4 +1,4 @@
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -29,7 +29,7 @@ class JobResponse(BaseModel):
     remote_type: str
     url: str
     source: str
-    parsed_jd: Optional[dict] = None
+    parsed_jd: dict | None = None
     discovered_at: str = ""
 
     model_config = {"from_attributes": True}
